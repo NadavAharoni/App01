@@ -1,8 +1,11 @@
 import os
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+
+load_dotenv()  # reads .env when present; no-op in Cloud Run where vars are injected
 
 from database import init_db
 from routers import auth as auth_router

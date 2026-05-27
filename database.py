@@ -1,5 +1,6 @@
 import logging
 import os
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
@@ -13,7 +14,21 @@ if DATABASE_URL.startswith("postgresql://"):
 elif DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
-engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+# asyncpg doesn't understand libpq-style query params (sslmode, channel_binding, etc.)
+# Strip ALL query params from the URL and handle SSL explicitly via connect_args.
+_parsed = urlparse(DATABASE_URL)
+_params = parse_qs(_parsed.query)
+_sslmode = (_params.get("sslmode", [None])[0])
+DATABASE_URL = urlunparse(_parsed._replace(query=""))
+
+_connect_args = {}
+if _sslmode in ("require", "verify-ca", "verify-full") or _sslmode is None:
+    # Neon always requires SSL; default to require when no sslmode is specified
+    _connect_args["ssl"] = "require"
+elif _sslmode == "disable":
+    _connect_args["ssl"] = False
+
+engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True, connect_args=_connect_args)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
