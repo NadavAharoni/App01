@@ -3,20 +3,20 @@
 ---
 
 ## Current Status
-*Last updated: 2026-05-27 19:19 — update this section at the start/end of every session.*
+*Last updated: 2026-05-28 12:06 — update this section at the start/end of every session.*
 
 ### What's Working
-- ✅ Google OAuth 2.0 login — tested with two separate Google accounts
+- ✅ Google OAuth 2.0 login — tested locally and on Cloud Run with two separate Google accounts
 - ✅ Local register / login / logout (email + password)
 - ✅ JWT session via HTTP-only cookie (`access_token`, 24h TTL)
 - ✅ Protected `/auth/me` endpoint and `get_current_user` dependency
 - ✅ Single-page frontend (Tailwind CSS) with auth card + dashboard
 - ✅ Neon Postgres connected; `users` table auto-created on startup
 - ✅ App runs locally on Python 3.14 via `python -m uvicorn main:app --reload --port 8080`
+- ✅ Deployed to Google Cloud Run
 
 ### What's Not Done Yet
 - ⬜ Local credentials login (form exists in UI, untested end-to-end)
-- ⬜ Deployed to Google Cloud Run
 - ⬜ Cloudflare CDN / R2 integration (future phase)
 - ⬜ AI API integration (future phase)
 
@@ -24,6 +24,7 @@
 - `uvicorn` in PATH is Python 3.13 — always use `python -m uvicorn`, never bare `uvicorn`
 - Neon connection string contains libpq params (`sslmode`, `channel_binding`) that asyncpg rejects — `database.py` strips them automatically; don't add them manually to `connect_args`
 - `load_dotenv()` is called in `main.py` — `.env` is picked up automatically, no need to set env vars manually when running locally
+- Cloud Run terminates HTTPS at the ingress — `ProxyHeadersMiddleware` in `main.py` ensures `request.base_url` reflects the correct `https://` scheme
 
 ### Environment
 - Local: Windows, Python 3.14.3, WSL2 available as fallback
@@ -32,7 +33,30 @@
 
 ### Next Steps
 - Test local credentials register/login end-to-end
-- Deploy to Google Cloud Run and smoke test
+- Smoke test Cloud Run with local credentials
+
+---
+
+## 2026-05-28 12:00–12:06 — Session 3
+
+### Cloud Run OAuth Fix
+
+Google OAuth redirect URI was hardcoded to `localhost`, causing login to fail on Cloud Run.
+
+#### Changes
+
+| File | Change |
+|---|---|
+| `routers/auth.py` | `GOOGLE_REDIRECT_URI` env var removed; redirect URI now built dynamically via `_callback_uri(request)` using `str(request.base_url) + "auth/google/callback"` |
+| `main.py` | Added `ProxyHeadersMiddleware` so `request.base_url` returns `https://` on Cloud Run (which terminates TLS at the ingress before uvicorn) |
+
+#### Git Commit
+
+`407cd38` — *Fix Google OAuth redirect URI to be dynamic; add ProxyHeadersMiddleware for Cloud Run HTTPS*
+
+#### Milestone
+
+✅ Google OAuth confirmed working on Cloud Run.
 
 ---
 
