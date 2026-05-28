@@ -1,6 +1,6 @@
 import os
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8080/auth/google/callback")
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -110,11 +109,17 @@ async def logout(response: Response):
 
 # ---------- Google OAuth ----------
 
+def _callback_uri(request: Request) -> str:
+    """Build the OAuth callback URL from the live request, works on any host/scheme."""
+    return str(request.base_url) + "auth/google/callback"
+
+
 @router.get("/google")
-async def google_login():
+async def google_login(request: Request):
+    redirect_uri = _callback_uri(request)
     params = (
         f"client_id={GOOGLE_CLIENT_ID}"
-        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
+        f"&redirect_uri={redirect_uri}"
         "&response_type=code"
         "&scope=openid%20email%20profile"
         "&access_type=offline"
@@ -124,7 +129,8 @@ async def google_login():
 
 
 @router.get("/google/callback")
-async def google_callback(code: str, response: Response, db: AsyncSession = Depends(get_db)):
+async def google_callback(request: Request, code: str, response: Response, db: AsyncSession = Depends(get_db)):
+    redirect_uri = _callback_uri(request)
     async with httpx.AsyncClient() as client:
         # Exchange code for tokens
         token_resp = await client.post(
@@ -133,7 +139,7 @@ async def google_callback(code: str, response: Response, db: AsyncSession = Depe
                 "code": code,
                 "client_id": GOOGLE_CLIENT_ID,
                 "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "redirect_uri": redirect_uri,
                 "grant_type": "authorization_code",
             },
         )

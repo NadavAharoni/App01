@@ -9,6 +9,7 @@ load_dotenv()  # reads .env when present; no-op in Cloud Run where vars are inje
 
 from database import init_db
 from routers import auth as auth_router
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 
 @asynccontextmanager
@@ -18,6 +19,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="App01", lifespan=lifespan)
+
+# Trust X-Forwarded-Proto from Cloud Run so request.url.scheme is https://
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Routers
 app.include_router(auth_router.router)
