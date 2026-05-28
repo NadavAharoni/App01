@@ -34,6 +34,8 @@
 ### Next Steps
 - Test local credentials register/login end-to-end
 - Smoke test Cloud Run with local credentials
+- **pytest suite** — unit tests (JWT, password hashing) + integration tests via `httpx.AsyncClient` against the FastAPI routes; run in CI on every push
+- **Browser smoke tests** — automated end-to-end verification against Cloud Run after deploy (local credentials test account; Google OAuth verified manually)
 
 ---
 
