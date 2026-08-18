@@ -3,14 +3,16 @@
 ---
 
 ## Current Status
-*Last updated: 2026-05-28 12:06 — update this section at the start/end of every session.*
+*Last updated: 2026-08-19 — update this section at the start/end of every session.*
 
 ### What's Working
 - ✅ Google OAuth 2.0 login — tested locally and on Cloud Run with two separate Google accounts
 - ✅ Local register / login / logout (email + password)
 - ✅ JWT session via HTTP-only cookie (`access_token`, 24h TTL)
 - ✅ Protected `/auth/me` endpoint and `get_current_user` dependency
-- ✅ Single-page frontend (Tailwind CSS) with auth card + dashboard
+- ✅ Public marketing home page (hero, features, stack, CTA) reachable without logging in
+- ✅ Sticky menu bar with Sign in / Sign up buttons and a hamburger menu on narrow screens
+- ✅ Dashboard as a second view behind auth; signing out returns to the public home page
 - ✅ Neon Postgres connected; `users` table auto-created on startup
 - ✅ App runs locally on Python 3.14 via `python -m uvicorn main:app --reload --port 8080`
 - ✅ Deployed to Google Cloud Run
@@ -25,17 +27,87 @@
 - Neon connection string contains libpq params (`sslmode`, `channel_binding`) that asyncpg rejects — `database.py` strips them automatically; don't add them manually to `connect_args`
 - `load_dotenv()` is called in `main.py` — `.env` is picked up automatically, no need to set env vars manually when running locally
 - Cloud Run terminates HTTPS at the ingress — `ProxyHeadersMiddleware` in `main.py` ensures `request.base_url` reflects the correct `https://` scheme
+- **Tailwind CDN has two traps, both hit in `static/index.html`:** (1) `@apply` in a `<style>` block does nothing — it is a build-time directive, so write plain CSS; (2) the CDN only compiles class names it can find in the document, so a class that exists *only* inside a JS string (e.g. `lg:inline` in an `innerHTML` template) is never generated. Keep both auth states in the static HTML and toggle them instead of injecting markup.
+- No `.env` exists on this machine — `DATABASE_URL` and `JWT_SECRET` must be supplied before the app will import (`database.py` and `auth.py` read them at module level)
 
 ### Environment
 - Local: Windows, Python 3.14.3, WSL2 available as fallback
 - DB: Neon Postgres 17 (credentials in `.env`)
 - Docker image: `python:3.11-slim` (production target)
+- Cloud Run: service `app01`, region **us-east1** (free-tier eligible), scaling Min 0 / Max 1,
+  URL `https://app01-295433370725.us-east1.run.app`
+- **Deploys happen by pushing to the GitHub repo**, not by `gcloud run deploy --source`. A Cloud
+  Build trigger created through the Cloud Run console watches the repo and builds from the
+  `Dockerfile`.
 
 ### Next Steps
+- **GCP free trial expires ~2026-08-26** (₪889.79 credit, 7 days left as of 2026-08-19). Without
+  upgrading to a paid account the service stops and is eventually deleted. Every student following
+  the wizard will hit the same cliff 90 days after signing up — the wizard needs a page for it.
+- **No deploy config in the repo.** There is no `cloudbuild.yaml` and no `.github/workflows`, so
+  the build/deploy pipeline exists only as a console-created Cloud Build trigger. Nothing in the
+  repo records how this app ships, and a fresh clone cannot reproduce it. Compare RiddleSite,
+  which keeps its runtime flags in `cloudbuild.yaml`. Worth fixing before this becomes a template.
+- Replace the placeholder landing-page copy once a demo feature (e.g. per-user notes) exists —
+  the hero should show off that feature rather than describe the template
 - Test local credentials register/login end-to-end
 - Smoke test Cloud Run with local credentials
 - **pytest suite** — unit tests (JWT, password hashing) + integration tests via `httpx.AsyncClient` against the FastAPI routes; run in CI on every push
 - **Browser smoke tests** — automated end-to-end verification against Cloud Run after deploy (local credentials test account; Google OAuth verified manually)
+
+---
+
+## 2026-08-19 — Session 4
+
+### Frontend restyle: public home page + menu bar
+
+App01 previously opened straight onto a login card, so there was nothing to see without an
+account. Rebuilt `static/index.html` as a public marketing page with the app behind it, in
+preparation for using this repo as the template for the setup-wizard project.
+
+#### Changes
+
+| File | Change |
+|---|---|
+| `static/index.html` | Rewritten. Sticky translucent menu bar (brand, nav links, Sign in / Sign up, hamburger under `md`); public hero with gradient headline and a drawn product mock; features, stack and CTA sections; footer. Login/register moved into a single modal dialog shared by the header buttons and both CTAs. Dashboard is now a second view (`#view-dashboard`) rather than a replacement for the page. |
+
+Backend untouched — no changes to `main.py`, `routers/auth.py`, `models.py`, `database.py`
+or `auth.py`. The frontend still talks to the same four endpoints.
+
+#### Landing-page copy: describe the app, don't advertise the template
+
+First draft of the hero sold the *idea* of the template ("Your app, on the cloud, for almost
+nothing"). Wrong on two counts: this page is also what a student's own users will eventually see,
+so until it is rewritten their app advertises someone else's product; and the pitch belongs on the
+wizard site, not in the thing the wizard installs. Recast as an example app describing itself
+("An example app, running in the cloud for almost nothing"), with a `Replace this copy` comment
+marking the section as the first thing to rewrite. When a demo feature lands, the hero should
+show that feature instead.
+
+The stack panel also claimed `gcloud run deploy --source .`, which is not how this repo ships.
+Corrected to `git push origin main`.
+
+#### Bugs found and fixed along the way
+
+- `.tab-btn.active` was styled with `@apply` inside a plain `<style>` block, which the Tailwind
+  CDN does not process. The active-tab underline had never rendered. Now plain CSS.
+- The signed-in username span was injected via `innerHTML` carrying `lg:inline`, a class present
+  nowhere else in the document, so the CDN never generated it and the name was invisible at every
+  width. Both auth states are now static markup toggled by class, and the display name is set with
+  `textContent` — which also removes the `innerHTML` injection path entirely.
+
+#### Verified locally
+
+Server run on port 8080 with a deliberately unreachable `DATABASE_URL` (`init_db` degrades
+without raising, by design). Driven through the browser: logged-out header, modal open/close via
+button, backdrop and Escape, tab switching, hamburger toggle with correct `aria-expanded`, menu
+auto-close on navigation, dashboard render for both avatar and initials fallback, Google vs local
+provider badges, sign-out returning to the public page, HTML-escaping of a hostile display name,
+and no horizontal overflow at 375 / 768 / 1280 px.
+
+**Not verified:** real register / login / Google OAuth against Neon — this machine has no `.env`,
+so no database credentials. The forms are wired to the same endpoints as before and the request
+shapes are unchanged, but the round trip is still untested end to end.
 
 ---
 

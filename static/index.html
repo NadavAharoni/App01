@@ -3,270 +3,618 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>App01 — Welcome</title>
+  <title>App01 — an example cloud app</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
+          colors: { brand: { DEFAULT: "#4F46E5", dark: "#4338CA", light: "#EEF2FF" } },
+        },
+      },
+    };
+  </script>
+
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    .tab-btn.active { @apply border-b-2 border-indigo-600 text-indigo-600 font-semibold; }
+    /* Plain CSS, not @apply: the Tailwind CDN compiles utility classes in the browser but
+       does NOT process @apply, which is a build-time directive. The previous version of this
+       file styled the active tab with @apply, so that styling silently never applied. */
+    .tab-btn { border-bottom: 2px solid transparent; color: #64748B; }
+    .tab-btn.active { border-bottom-color: #4F46E5; color: #4F46E5; font-weight: 600; }
+
+    /* Soft violet bloom behind the hero. Pure decoration, so it is a pseudo-element and
+       never participates in layout or hit-testing. */
+    .bloom::before {
+      content: ""; position: absolute; inset: -40% 0 auto 0; height: 620px; z-index: -1;
+      background:
+        radial-gradient(48rem 24rem at 50% 0%, rgba(99, 102, 241, .16), transparent 70%),
+        radial-gradient(32rem 20rem at 15% 10%, rgba(168, 85, 247, .12), transparent 70%);
+      pointer-events: none;
+    }
+
+    .card-hover { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .card-hover:hover {
+      transform: translateY(-2px); border-color: #C7D2FE;
+      box-shadow: 0 12px 32px -12px rgba(79, 70, 229, .22);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, .card-hover { transition: none !important; animation: none !important; transform: none !important; }
+    }
   </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-slate-100 to-indigo-50 flex items-center justify-center p-4">
 
-  <!-- ════════════════ AUTH CARD ════════════════ -->
-  <div id="auth-card" class="w-full max-w-md">
-    <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+<body class="bg-white text-slate-800 min-h-screen flex flex-col antialiased selection:bg-brand/20">
 
-      <!-- Header -->
-      <div class="bg-indigo-600 px-8 py-6 text-center">
-        <h1 class="text-2xl font-bold text-white tracking-tight">App01</h1>
-        <p class="text-indigo-200 text-sm mt-1">Your cloud-native starter</p>
-      </div>
+<!-- ═════════════════ MENU BAR ═════════════════
+     One header for every visitor, signed in or not. The auth area is filled in by JS, so the
+     served HTML is identical for everyone and stays edge-cacheable later. -->
+<header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/70 backdrop-blur-xl">
+  <nav class="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
 
-      <div class="px-8 py-6">
+    <a href="#/" onclick="showView('home')" class="flex items-center gap-2.5 shrink-0 group">
+      <span class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white
+                   grid place-items-center font-bold text-sm shadow-sm shadow-indigo-500/30">A</span>
+      <span class="text-lg font-semibold tracking-tight text-slate-900">App01</span>
+    </a>
 
-        <!-- Google button -->
-        <a href="/auth/google"
-           class="flex items-center justify-center gap-3 w-full border border-slate-300 rounded-lg py-2.5 px-4 hover:bg-slate-50 transition text-slate-700 font-medium shadow-sm">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          Sign in with Google
-        </a>
-
-        <!-- Divider -->
-        <div class="flex items-center gap-3 my-5">
-          <div class="flex-1 h-px bg-slate-200"></div>
-          <span class="text-slate-400 text-xs uppercase tracking-widest">or</span>
-          <div class="flex-1 h-px bg-slate-200"></div>
-        </div>
-
-        <!-- Tabs -->
-        <div class="flex border-b border-slate-200 mb-5 gap-4">
-          <button onclick="switchTab('login')"
-                  id="tab-login"
-                  class="tab-btn active pb-2 text-sm transition-colors">Login</button>
-          <button onclick="switchTab('register')"
-                  id="tab-register"
-                  class="tab-btn pb-2 text-sm text-slate-500 transition-colors">Register</button>
-        </div>
-
-        <!-- Login form -->
-        <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Email</label>
-            <input name="email" type="email" required placeholder="you@example.com"
-                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Password</label>
-            <input name="password" type="password" required placeholder="••••••••"
-                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          </div>
-          <p id="login-error" class="text-red-500 text-xs hidden"></p>
-          <button type="submit"
-                  class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-semibold transition shadow">
-            Log In
-          </button>
-        </form>
-
-        <!-- Register form -->
-        <form id="form-register" onsubmit="handleRegister(event)" class="space-y-4 hidden">
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Username</label>
-            <input name="username" type="text" required placeholder="cooluser"
-                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Email</label>
-            <input name="email" type="email" required placeholder="you@example.com"
-                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Password</label>
-            <input name="password" type="password" required placeholder="min 8 characters"
-                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          </div>
-          <p id="register-error" class="text-red-500 text-xs hidden"></p>
-          <button type="submit"
-                  class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-semibold transition shadow">
-            Create Account
-          </button>
-        </form>
-
-      </div>
+    <div class="hidden md:flex items-center gap-7 text-sm font-medium text-slate-600">
+      <a href="#features" class="hover:text-slate-900 transition">Features</a>
+      <a href="#stack" class="hover:text-slate-900 transition">Stack</a>
+      <a href="#/dashboard" onclick="showView('dashboard')" id="nav-dashboard"
+         class="hidden hover:text-slate-900 transition">Dashboard</a>
     </div>
-  </div>
 
-  <!-- ════════════════ DASHBOARD ════════════════ -->
-  <div id="dashboard" class="w-full max-w-2xl hidden">
-    <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
-
-      <!-- Top bar -->
-      <div class="bg-indigo-600 px-8 py-5 flex items-center justify-between">
-        <h1 class="text-xl font-bold text-white">App01 Dashboard</h1>
+    <!-- Both auth states are in the static HTML and toggled, rather than injected as class
+         strings by JS: the Tailwind CDN only compiles classes it can find in the document, so a
+         responsive class that appears only inside a JS string (lg:inline) is never generated. -->
+    <div class="hidden md:flex items-center gap-2">
+      <div id="auth-out" class="flex items-center gap-2">
+        <button onclick="openAuth('login')"
+                class="px-3.5 py-1.5 text-sm rounded-lg text-slate-600 hover:bg-slate-100
+                       font-medium transition">Sign in</button>
+        <button onclick="openAuth('register')"
+                class="px-3.5 py-1.5 text-sm rounded-lg bg-brand text-white hover:bg-brand-dark
+                       font-medium transition">Sign up</button>
+      </div>
+      <div id="auth-in" class="hidden items-center gap-3">
+        <span id="user-label" class="hidden lg:inline text-sm text-slate-500 max-w-[14rem] truncate"></span>
         <button onclick="handleLogout()"
-                class="text-indigo-200 hover:text-white text-sm border border-indigo-400 hover:border-white rounded-lg px-4 py-1.5 transition">
-          Logout
-        </button>
+                class="px-3.5 py-1.5 text-sm rounded-lg border border-slate-300 text-slate-600
+                       hover:bg-slate-50 transition">Sign out</button>
       </div>
+    </div>
 
-      <div class="px-8 py-8">
-        <!-- Avatar + name -->
-        <div class="flex items-center gap-5 mb-8">
-          <img id="user-avatar" src="" alt="Avatar"
-               class="w-16 h-16 rounded-full border-4 border-indigo-100 object-cover hidden" />
-          <div id="user-initials"
-               class="w-16 h-16 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-2xl font-bold">
-          </div>
-          <div>
-            <h2 id="user-name" class="text-xl font-semibold text-slate-800"></h2>
-            <span id="user-provider"
-                  class="inline-block text-xs font-medium bg-indigo-50 text-indigo-600 rounded-full px-3 py-0.5 mt-1">
-            </span>
-          </div>
+    <button id="menu-toggle" aria-controls="mobile-menu" aria-expanded="false" aria-label="Open menu"
+            class="md:hidden p-2 -mr-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
+      <svg id="icon-open" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8"
+           viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg id="icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" stroke-width="1.8"
+           viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </nav>
+
+  <div id="mobile-menu" class="hidden md:hidden border-t border-slate-200 bg-white">
+    <div class="px-5 py-4 flex flex-col gap-1 text-slate-700 font-medium">
+      <a href="#features" class="py-2.5 hover:text-brand transition">Features</a>
+      <a href="#stack" class="py-2.5 hover:text-brand transition">Stack</a>
+      <a href="#/dashboard" onclick="showView('dashboard')" id="nav-dashboard-mobile"
+         class="hidden py-2.5 hover:text-brand transition">Dashboard</a>
+      <div class="flex flex-col gap-2 pt-3 mt-2 border-t border-slate-100">
+        <div id="auth-out-mobile" class="flex flex-col gap-2">
+          <button onclick="openAuth('login')"
+                  class="w-full px-4 py-2.5 text-sm rounded-lg border border-slate-300 text-slate-700
+                         hover:bg-slate-50 font-medium transition">Sign in</button>
+          <button onclick="openAuth('register')"
+                  class="w-full px-4 py-2.5 text-sm rounded-lg bg-brand text-white hover:bg-brand-dark
+                         font-medium transition">Sign up</button>
         </div>
-
-        <!-- Details grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="bg-slate-50 rounded-xl p-4">
-            <p class="text-xs text-slate-400 uppercase tracking-wide mb-1">Email</p>
-            <p id="user-email" class="text-slate-700 font-medium text-sm break-all"></p>
-          </div>
-          <div class="bg-slate-50 rounded-xl p-4">
-            <p class="text-xs text-slate-400 uppercase tracking-wide mb-1">Username</p>
-            <p id="user-username" class="text-slate-700 font-medium text-sm"></p>
-          </div>
-          <div class="bg-slate-50 rounded-xl p-4">
-            <p class="text-xs text-slate-400 uppercase tracking-wide mb-1">User ID</p>
-            <p id="user-id" class="text-slate-700 font-medium text-xs font-mono break-all"></p>
-          </div>
-          <div class="bg-slate-50 rounded-xl p-4">
-            <p class="text-xs text-slate-400 uppercase tracking-wide mb-1">Auth Provider</p>
-            <p id="user-provider-detail" class="text-slate-700 font-medium text-sm capitalize"></p>
-          </div>
+        <div id="auth-in-mobile" class="hidden flex-col gap-2">
+          <span id="user-label-mobile" class="text-sm text-slate-500 py-1 truncate"></span>
+          <button onclick="handleLogout()"
+                  class="w-full px-4 py-2.5 text-sm rounded-lg border border-slate-300 text-slate-600
+                         hover:bg-slate-50 transition">Sign out</button>
         </div>
       </div>
     </div>
   </div>
+</header>
 
-  <script>
-    // ── Tab switching ──────────────────────────────────────
-    function switchTab(tab) {
-      const isLogin = tab === 'login';
-      document.getElementById('form-login').classList.toggle('hidden', !isLogin);
-      document.getElementById('form-register').classList.toggle('hidden', isLogin);
-      document.getElementById('tab-login').classList.toggle('active', isLogin);
-      document.getElementById('tab-register').classList.toggle('active', !isLogin);
-      document.getElementById('tab-login').classList.toggle('text-slate-500', !isLogin);
-      document.getElementById('tab-register').classList.toggle('text-slate-500', isLogin);
+<!-- ═════════════════ HOME (public) ═════════════════ -->
+<main id="view-home" class="flex-1">
+
+  <!-- ── Replace this copy ──
+       Everything in this section describes the template itself, which is only true until you
+       build something with it. This is the first thing to rewrite: say what YOUR app does. -->
+  <section class="bloom relative isolate max-w-6xl mx-auto px-5 pt-20 pb-16 sm:pt-28 text-center">
+    <span class="inline-flex items-center gap-2 text-xs font-medium text-slate-600 bg-white
+                 border border-slate-200 rounded-full pl-2 pr-3 py-1 mb-7 shadow-sm">
+      <span class="text-[10px] font-semibold bg-brand-light text-brand rounded-full px-2 py-0.5">DEMO</span>
+      Example app
+    </span>
+
+    <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.05]">
+      An example app, running<br class="hidden sm:block" />
+      in the cloud
+      <span class="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+        for almost nothing.</span>
+    </h1>
+
+    <p class="mt-6 text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+      It signs you in, keeps your data in a real database, and lives at a public URL — the parts
+      every app needs, already working. Create an account and have a look around.
+    </p>
+
+    <div class="mt-9 flex flex-col sm:flex-row gap-3 justify-center">
+      <button onclick="openAuth('register')"
+              class="px-6 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold
+                     shadow-lg shadow-indigo-600/20 transition">Create an account</button>
+      <a href="#features"
+         class="px-6 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50
+                font-semibold text-slate-700 transition">See what is inside</a>
+    </div>
+
+    <!-- Product shot, drawn rather than screenshotted so it never goes stale. -->
+    <div class="mt-16 mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white
+                shadow-2xl shadow-slate-900/10 overflow-hidden text-left">
+      <div class="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 bg-slate-50">
+        <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+        <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+        <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+        <span class="ml-3 text-[11px] text-slate-400 font-mono">app01-xxxx.run.app</span>
+      </div>
+      <div class="p-6 sm:p-8">
+        <div class="flex items-center gap-4 mb-6">
+          <div class="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600"></div>
+          <div class="space-y-2">
+            <div class="h-3 w-36 rounded bg-slate-200"></div>
+            <div class="h-2.5 w-24 rounded bg-slate-100"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="h-16 rounded-xl border border-slate-200 bg-slate-50"></div>
+          <div class="h-16 rounded-xl border border-slate-200 bg-slate-50"></div>
+          <div class="h-16 rounded-xl border border-slate-200 bg-slate-50"></div>
+          <div class="h-16 rounded-xl border border-slate-200 bg-slate-50"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="border-t border-slate-200 bg-slate-50/60 scroll-mt-16">
+    <div class="max-w-6xl mx-auto px-5 py-20 sm:py-24">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 text-center">
+        The boring parts, already working
+      </h2>
+      <p class="mt-4 text-slate-600 text-center max-w-xl mx-auto leading-relaxed">
+        Auth, database and deployment are solved. You start at the interesting part.
+      </p>
+
+      <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="card-hover bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600
+                      text-white grid place-items-center mb-5 shadow-sm shadow-indigo-500/25">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M16 12a4 4 0 10-8 0 4 4 0 008 0zM4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+          </div>
+          <h3 class="font-semibold text-slate-900 text-lg">Authentication</h3>
+          <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+            Sign in with Google, or with email and password. The session is a signed JWT in an
+            HttpOnly cookie, never a token sitting in local storage.
+          </p>
+        </div>
+
+        <div class="card-hover bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600
+                      text-white grid place-items-center mb-5 shadow-sm shadow-indigo-500/25">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <ellipse cx="12" cy="6" rx="8" ry="3"/><path stroke-linecap="round"
+                    d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+          </div>
+          <h3 class="font-semibold text-slate-900 text-lg">Managed Postgres</h3>
+          <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+            A real Neon database with a <code class="text-xs bg-slate-100 px-1 py-0.5
+            rounded">users</code> table created on startup. Scales to zero while nobody is looking.
+          </p>
+        </div>
+
+        <div class="card-hover bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600
+                      text-white grid place-items-center mb-5 shadow-sm shadow-indigo-500/25">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M7 16a4 4 0 010-8 5.5 5.5 0 0110.5-1.5A4.5 4.5 0 1118 16H7z"/></svg>
+          </div>
+          <h3 class="font-semibold text-slate-900 text-lg">Deploys to Cloud Run</h3>
+          <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+            Containerised, capped at one instance, scaling to zero. A live demo costs cents a
+            month, and the whole thing stays yours.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stack -->
+  <section id="stack" class="scroll-mt-16">
+    <div class="max-w-6xl mx-auto px-5 py-20 sm:py-24">
+      <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
+        <div>
+          <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
+            Small enough to read in one sitting
+          </h2>
+          <p class="mt-5 text-slate-600 leading-relaxed">
+            Under a thousand lines of Python across six files. No framework layered on the
+            framework, no generated code you are afraid to touch. Open it, read it, change it.
+          </p>
+          <ul class="mt-7 space-y-3.5 text-sm text-slate-700">
+            <li class="flex gap-3"><span class="text-brand font-bold">&#10003;</span>
+              FastAPI and async SQLAlchemy</li>
+            <li class="flex gap-3"><span class="text-brand font-bold">&#10003;</span>
+              Neon Postgres over asyncpg</li>
+            <li class="flex gap-3"><span class="text-brand font-bold">&#10003;</span>
+              Google OAuth 2.0, identity scopes only</li>
+            <li class="flex gap-3"><span class="text-brand font-bold">&#10003;</span>
+              Tailwind from a CDN, so there is no build step</li>
+          </ul>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900 p-6 font-mono text-[13px] leading-loose
+                    text-slate-300 overflow-x-auto shadow-xl shadow-slate-900/20">
+          <div class="text-slate-500 select-none"># run it locally</div>
+          <div><span class="text-violet-400">python</span> -m uvicorn main:app --reload --port 8080</div>
+          <div class="mt-5 text-slate-500 select-none"># ship it &mdash; a push to main builds and deploys</div>
+          <div><span class="text-violet-400">git</span> push origin main</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Closing CTA -->
+  <section class="border-t border-slate-200">
+    <div class="max-w-6xl mx-auto px-5 py-20 text-center">
+      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
+        Try the sign-in flow
+      </h2>
+      <p class="mt-4 text-slate-600 max-w-lg mx-auto">
+        Register with an email or a Google account and see the whole round trip — it takes
+        about a minute.
+      </p>
+      <button onclick="openAuth('register')"
+              class="mt-8 px-7 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold
+                     shadow-lg shadow-indigo-600/20 transition">Create an account</button>
+    </div>
+  </section>
+</main>
+
+<!-- ═════════════════ DASHBOARD (signed in) ═════════════════ -->
+<main id="view-dashboard" class="hidden flex-1">
+  <div class="max-w-3xl mx-auto px-5 py-14">
+
+    <div class="flex items-center gap-5 mb-10">
+      <img id="user-avatar" src="" alt=""
+           class="w-16 h-16 rounded-full object-cover ring-4 ring-brand-light hidden" />
+      <div id="user-initials"
+           class="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white
+                  grid place-items-center text-2xl font-bold"></div>
+      <div>
+        <h1 id="user-name" class="text-2xl font-bold tracking-tight text-slate-900"></h1>
+        <span id="user-provider"
+              class="inline-block text-xs font-medium bg-slate-100 text-slate-600
+                     rounded-full px-2.5 py-0.5 mt-1.5"></span>
+      </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 p-5">
+        <p class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Email</p>
+        <p id="user-email" class="text-slate-800 font-medium text-sm break-all"></p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-5">
+        <p class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Username</p>
+        <p id="user-username" class="text-slate-800 font-medium text-sm"></p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-5">
+        <p class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">User ID</p>
+        <p id="user-id" class="text-slate-800 font-medium text-xs font-mono break-all"></p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-5">
+        <p class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Auth provider</p>
+        <p id="user-provider-detail" class="text-slate-800 font-medium text-sm capitalize"></p>
+      </div>
+    </div>
+
+    <div class="mt-10 rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+      <p class="text-sm text-slate-500">
+        This is where your app goes. Ask Claude Code for the first feature.
+      </p>
+    </div>
+  </div>
+</main>
+
+<!-- ═════════════════ FOOTER ═════════════════ -->
+<footer class="border-t border-slate-200 bg-slate-50/60">
+  <div class="max-w-6xl mx-auto px-5 py-8 flex flex-col sm:flex-row items-center
+              justify-between gap-3 text-sm text-slate-500">
+    <div class="flex items-center gap-2.5">
+      <span class="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white
+                   grid place-items-center font-bold text-[11px]">A</span>
+      <span>App01 — a starter template</span>
+    </div>
+    <span>FastAPI &middot; Neon Postgres &middot; Cloud Run</span>
+  </div>
+</footer>
+
+<!-- ═════════════════ AUTH DIALOG ═════════════════
+     One dialog for both tabs. The header buttons and both CTAs land here, so there is a
+     single sign-in surface to keep correct. -->
+<div id="auth-modal" class="hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm
+                            flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+  <div role="dialog" aria-modal="true" aria-labelledby="auth-title"
+       class="bg-white rounded-2xl shadow-2xl w-full max-w-md my-8 sm:my-0">
+
+    <div class="flex items-center justify-between px-7 pt-6 pb-4">
+      <h2 id="auth-title" class="text-xl font-bold tracking-tight text-slate-900">Welcome back</h2>
+      <button id="auth-close" aria-label="Close"
+              class="p-1.5 -mr-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="px-7 pb-7">
+      <a href="/auth/google"
+         class="flex items-center justify-center gap-3 w-full border border-slate-300 rounded-xl
+                py-2.5 px-4 hover:bg-slate-50 transition text-slate-700 font-medium">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </a>
+
+      <div class="flex items-center gap-3 my-5">
+        <div class="flex-1 h-px bg-slate-200"></div>
+        <span class="text-slate-400 text-xs uppercase tracking-widest">or</span>
+        <div class="flex-1 h-px bg-slate-200"></div>
+      </div>
+
+      <div class="flex gap-5 border-b border-slate-200 mb-5">
+        <button onclick="switchTab('login')" id="tab-login"
+                class="tab-btn pb-2.5 text-sm transition">Sign in</button>
+        <button onclick="switchTab('register')" id="tab-register"
+                class="tab-btn pb-2.5 text-sm transition">Sign up</button>
+      </div>
+
+      <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1.5">Email</label>
+          <input name="email" type="email" required autocomplete="email" placeholder="you@example.com"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
+          <input name="password" type="password" required autocomplete="current-password"
+                 placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
+        </div>
+        <p id="login-error" class="text-red-600 text-xs hidden"></p>
+        <button type="submit"
+                class="w-full bg-brand hover:bg-brand-dark text-white rounded-xl py-2.5 text-sm
+                       font-semibold transition">Sign in</button>
+      </form>
+
+      <form id="form-register" onsubmit="handleRegister(event)" class="space-y-4 hidden">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1.5">Username</label>
+          <input name="username" type="text" required autocomplete="username" placeholder="cooluser"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1.5">Email</label>
+          <input name="email" type="email" required autocomplete="email" placeholder="you@example.com"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
+          <input name="password" type="password" required autocomplete="new-password"
+                 placeholder="min 8 characters"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
+        </div>
+        <p id="register-error" class="text-red-600 text-xs hidden"></p>
+        <button type="submit"
+                class="w-full bg-brand hover:bg-brand-dark text-white rounded-xl py-2.5 text-sm
+                       font-semibold transition">Create account</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let user = null;
+
+  // ── View switching ────────────────────────────────────
+  // The home page is public, so the dashboard is a second view rather than a replacement:
+  // signing out lands on a page that still has something on it.
+  function showView(name) {
+    const dash = name === "dashboard" && !!user;
+    $("view-home").classList.toggle("hidden", dash);
+    $("view-dashboard").classList.toggle("hidden", !dash);
+    closeMenu();
+    window.scrollTo(0, 0);
+  }
+
+  // ── Mobile menu ───────────────────────────────────────
+  function closeMenu() {
+    $("mobile-menu").classList.add("hidden");
+    $("icon-open").classList.remove("hidden");
+    $("icon-close").classList.add("hidden");
+    $("menu-toggle").setAttribute("aria-expanded", "false");
+  }
+  $("menu-toggle").onclick = () => {
+    const open = $("mobile-menu").classList.toggle("hidden") === false;
+    $("icon-open").classList.toggle("hidden", open);
+    $("icon-close").classList.toggle("hidden", !open);
+    $("menu-toggle").setAttribute("aria-expanded", String(open));
+  };
+  // Anchor links inside the panel must close it, or the target scrolls under an open menu.
+  $("mobile-menu").querySelectorAll("a").forEach((a) => a.addEventListener("click", closeMenu));
+
+  // ── Auth dialog ───────────────────────────────────────
+  function openAuth(tab) {
+    switchTab(tab || "login");
+    $("auth-modal").classList.remove("hidden");
+    closeMenu();
+    const first = $("auth-modal").querySelector("form:not(.hidden) input");
+    if (first) first.focus();
+  }
+  function closeAuth() { $("auth-modal").classList.add("hidden"); }
+
+  $("auth-close").onclick = closeAuth;
+  $("auth-modal").onclick = (e) => { if (e.target === $("auth-modal")) closeAuth(); };
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { closeAuth(); closeMenu(); }
+  });
+
+  function switchTab(tab) {
+    const isLogin = tab === "login";
+    $("form-login").classList.toggle("hidden", !isLogin);
+    $("form-register").classList.toggle("hidden", isLogin);
+    $("tab-login").classList.toggle("active", isLogin);
+    $("tab-register").classList.toggle("active", !isLogin);
+    $("auth-title").textContent = isLogin ? "Welcome back" : "Create your account";
+  }
+
+  // ── Header auth state ─────────────────────────────────
+  function renderAuth() {
+    const signedIn = !!user;
+    $("nav-dashboard").classList.toggle("hidden", !signedIn);
+    $("nav-dashboard-mobile").classList.toggle("hidden", !signedIn);
+
+    $("auth-out").classList.toggle("hidden", signedIn);
+    $("auth-out").classList.toggle("flex", !signedIn);
+    $("auth-in").classList.toggle("hidden", !signedIn);
+    $("auth-in").classList.toggle("flex", signedIn);
+
+    $("auth-out-mobile").classList.toggle("hidden", signedIn);
+    $("auth-out-mobile").classList.toggle("flex", !signedIn);
+    $("auth-in-mobile").classList.toggle("hidden", !signedIn);
+    $("auth-in-mobile").classList.toggle("flex", signedIn);
+
+    if (signedIn) {
+      // textContent, not innerHTML: a display name comes from the user record and from
+      // Google's profile, neither of which is trusted markup.
+      const label = user.full_name || user.username || user.email;
+      $("user-label").textContent = label;
+      $("user-label-mobile").textContent = label;
     }
+  }
 
-    // ── Show dashboard ─────────────────────────────────────
-    function showDashboard(user) {
-      document.getElementById('auth-card').classList.add('hidden');
-      document.getElementById('dashboard').classList.remove('hidden');
+  // ── Dashboard ─────────────────────────────────────────
+  function renderDashboard() {
+    if (!user) return;
+    const display = user.full_name || user.username || user.email;
+    $("user-name").textContent = display;
+    $("user-email").textContent = user.email;
+    $("user-username").textContent = user.username || "—";
+    $("user-id").textContent = user.id;
+    $("user-provider").textContent =
+      user.auth_provider === "google" ? "Google account" : "Local account";
+    $("user-provider-detail").textContent = user.auth_provider;
 
-      const display = user.full_name || user.username || user.email;
-      document.getElementById('user-name').textContent = display;
-      document.getElementById('user-email').textContent = user.email;
-      document.getElementById('user-username').textContent = user.username || '—';
-      document.getElementById('user-id').textContent = user.id;
-      document.getElementById('user-provider').textContent =
-        user.auth_provider === 'google' ? '🔵 Google Account' : '🔒 Local Account';
-      document.getElementById('user-provider-detail').textContent = user.auth_provider;
+    const img = $("user-avatar"), initials = $("user-initials");
+    if (user.avatar_url) {
+      img.src = user.avatar_url;
+      img.classList.remove("hidden");
+      initials.classList.add("hidden");
+    } else {
+      img.classList.add("hidden");
+      initials.classList.remove("hidden");
+      initials.textContent =
+        (display || "?").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+    }
+  }
 
-      if (user.avatar_url) {
-        const img = document.getElementById('user-avatar');
-        img.src = user.avatar_url;
-        img.classList.remove('hidden');
-        document.getElementById('user-initials').classList.add('hidden');
-      } else {
-        const initials = (display || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-        document.getElementById('user-initials').textContent = initials;
+  function setUser(u) {
+    user = u;
+    renderAuth();
+    renderDashboard();
+  }
+
+  // ── Form handlers ─────────────────────────────────────
+  async function submitAuth(url, body, errEl) {
+    errEl.classList.add("hidden");
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        // FastAPI validation errors arrive as a list of objects, not a string.
+        errEl.textContent = typeof data.detail === "string" ? data.detail : "Something went wrong";
+        errEl.classList.remove("hidden");
+        return;
       }
+      setUser(await res.json());
+      closeAuth();
+      showView("dashboard");
+    } catch {
+      errEl.textContent = "Network error. Please try again.";
+      errEl.classList.remove("hidden");
     }
+  }
 
-    // ── Auth form handlers ─────────────────────────────────
-    async function handleLogin(e) {
-      e.preventDefault();
-      const form = e.target;
-      const errEl = document.getElementById('login-error');
-      errEl.classList.add('hidden');
-      const body = {
-        email: form.email.value,
-        password: form.password.value,
-      };
-      try {
-        const res = await fetch('/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          credentials: 'same-origin',
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          errEl.textContent = data.detail || 'Login failed';
-          errEl.classList.remove('hidden');
-          return;
-        }
-        const user = await res.json();
-        showDashboard(user);
-      } catch {
-        errEl.textContent = 'Network error. Please try again.';
-        errEl.classList.remove('hidden');
-      }
-    }
+  function handleLogin(e) {
+    e.preventDefault();
+    submitAuth("/auth/login",
+      { email: e.target.email.value, password: e.target.password.value }, $("login-error"));
+  }
 
-    async function handleRegister(e) {
-      e.preventDefault();
-      const form = e.target;
-      const errEl = document.getElementById('register-error');
-      errEl.classList.add('hidden');
-      const body = {
-        email: form.email.value,
-        username: form.username.value,
-        password: form.password.value,
-      };
-      try {
-        const res = await fetch('/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          credentials: 'same-origin',
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          errEl.textContent = data.detail || 'Registration failed';
-          errEl.classList.remove('hidden');
-          return;
-        }
-        const user = await res.json();
-        showDashboard(user);
-      } catch {
-        errEl.textContent = 'Network error. Please try again.';
-        errEl.classList.remove('hidden');
-      }
-    }
+  function handleRegister(e) {
+    e.preventDefault();
+    submitAuth("/auth/register",
+      { email: e.target.email.value, username: e.target.username.value,
+        password: e.target.password.value }, $("register-error"));
+  }
 
-    async function handleLogout() {
-      await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
-      document.getElementById('dashboard').classList.add('hidden');
-      document.getElementById('auth-card').classList.remove('hidden');
-    }
+  async function handleLogout() {
+    await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
+    setUser(null);
+    showView("home");
+  }
 
-    // ── On load: check if already logged in ───────────────
-    (async () => {
-      try {
-        const res = await fetch('/auth/me', { credentials: 'same-origin' });
-        if (res.ok) {
-          const user = await res.json();
-          showDashboard(user);
-        }
-      } catch { /* not logged in */ }
-    })();
-  </script>
+  // ── On load ───────────────────────────────────────────
+  // /auth/me returns 401 when there is no valid cookie, which is the normal path for a
+  // first-time visitor rather than an error worth showing.
+  (async () => {
+    try {
+      const res = await fetch("/auth/me", { credentials: "same-origin" });
+      setUser(res.ok ? await res.json() : null);
+    } catch { setUser(null); }
+
+    // Land on the dashboard after the Google callback redirect when the URL asks for it.
+    if (location.hash === "#/dashboard") showView("dashboard");
+  })();
+</script>
 </body>
 </html>
