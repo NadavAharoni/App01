@@ -47,6 +47,14 @@
 - **GCP free trial expires ~2026-08-26** (₪889.79 credit, 7 days left as of 2026-08-19). Without
   upgrading to a paid account the service stops and is eventually deleted. Every student following
   the wizard will hit the same cliff 90 days after signing up — the wizard needs a page for it.
+- **Docs-only commits trigger a full rebuild and a new Cloud Run revision.** The build trigger has
+  no ignored-files filter, so editing `project_log.md` ships a revision identical to the running
+  one and burns build quota. Fix once the gcloud CLI is installed on this machine — set the
+  equivalent of RiddleSite's `TriggerIgnoredFiles = "**/*.md,*.ps1"`. Note RiddleSite's warning:
+  a trigger created by the Cloud Run console wizard is Cloud Run-managed and holds fields that
+  `gcloud builds triggers create/update github` cannot express — those subcommands reject it with
+  `INVALID_ARGUMENT`. Use `gcloud beta builds triggers export`, edit the YAML, then `import`,
+  which round-trips the whole resource.
 - **No deploy config in the repo.** There is no `cloudbuild.yaml` and no `.github/workflows`, so
   the build/deploy pipeline exists only as a console-created Cloud Build trigger. Nothing in the
   repo records how this app ships, and a fresh clone cannot reproduce it. Compare RiddleSite,
@@ -107,6 +115,10 @@ and "Try the sign-in flow" — to a user who had just signed in. Two separate fa
 
 Verified locally in both states: signed in, the home page contains no "Create an account" or
 "Sign up" text anywhere; signed out, everything is restored.
+
+Confirmed on the live service after deploy: Google sign-in now lands on the dashboard, and a
+second sign-in reuses the existing `users` row (same UUID) rather than inserting a duplicate,
+so the callback's update branch works as well as its insert branch.
 
 #### Bugs found and fixed along the way
 
