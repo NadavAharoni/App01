@@ -179,7 +179,9 @@ async def google_callback(request: Request, code: str, response: Response, db: A
         user.avatar_url = info.get("picture", user.avatar_url)
         await db.commit()
 
-    redirect = RedirectResponse(url="/", status_code=302)
+    # Land on the dashboard, matching what the email/password path does on success. Without the
+    # fragment the user arrives on the public marketing page having just signed in.
+    redirect = RedirectResponse(url="/#/dashboard", status_code=302)
     _set_auth_cookie(redirect, user)
     return redirect
 

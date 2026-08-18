@@ -6,7 +6,10 @@
 *Last updated: 2026-08-19 — update this section at the start/end of every session.*
 
 ### What's Working
-- ✅ Google OAuth 2.0 login — tested locally and on Cloud Run with two separate Google accounts
+- ✅ Google OAuth 2.0 login — tested locally and on Cloud Run with two separate Google accounts.
+  Re-verified end to end in production 2026-08-19 against the restyled frontend: sign-in creates
+  the Neon `users` row, the dashboard renders the profile, and Google's generated letter-avatar
+  loads via `avatar_url`. `username` is correctly `—` for Google accounts.
 - ✅ Local register / login / logout (email + password)
 - ✅ JWT session via HTTP-only cookie (`access_token`, 24h TTL)
 - ✅ Protected `/auth/me` endpoint and `get_current_user` dependency
@@ -86,6 +89,24 @@ show that feature instead.
 
 The stack panel also claimed `gcloud run deploy --source .`, which is not how this repo ships.
 Corrected to `git push origin main`.
+
+#### Follow-up after the first deploy: the home page ignored the auth state
+
+Signing in with Google landed on the public home page still showing "Create an account", "Sign up"
+and "Try the sign-in flow" — to a user who had just signed in. Two separate faults:
+
+1. **The public page never adapted to being signed in.** It is reachable while authenticated (via
+   the logo, the Home link, or the post-login redirect), so its calls to action have to follow the
+   auth state like the header already did. The hero CTA now swaps to "Open your dashboard", the
+   closing invitation section is removed entirely, and the hero's final sentence swaps. All are
+   static markup toggled by class in `renderAuth()` — the same pattern used for the header, and
+   for the same Tailwind CDN reason.
+2. **The two auth paths ended in different places.** `routers/auth.py` redirected the Google
+   callback to `/`, while the email/password path calls `showView("dashboard")`. The callback now
+   redirects to `/#/dashboard`, which the frontend already reads on load.
+
+Verified locally in both states: signed in, the home page contains no "Create an account" or
+"Sign up" text anywhere; signed out, everything is restored.
 
 #### Bugs found and fixed along the way
 

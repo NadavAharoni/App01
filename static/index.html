@@ -149,13 +149,21 @@
 
     <p class="mt-6 text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
       It signs you in, keeps your data in a real database, and lives at a public URL — the parts
-      every app needs, already working. Create an account and have a look around.
+      every app needs, already working.
+      <span id="hero-line-out">Create an account and have a look around.</span>
+      <span id="hero-line-in" class="hidden">You are signed in — open your dashboard to see what
+        the app knows about you.</span>
     </p>
 
+    <!-- Signed-out and signed-in calls to action are both in the markup and toggled, so a
+         signed-in visitor is never told to create an account they already have. -->
     <div class="mt-9 flex flex-col sm:flex-row gap-3 justify-center">
-      <button onclick="openAuth('register')"
+      <button id="cta-register" onclick="openAuth('register')"
               class="px-6 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold
                      shadow-lg shadow-indigo-600/20 transition">Create an account</button>
+      <button id="cta-dashboard" onclick="showView('dashboard')"
+              class="hidden px-6 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold
+                     shadow-lg shadow-indigo-600/20 transition">Open your dashboard</button>
       <a href="#features"
          class="px-6 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50
                 font-semibold text-slate-700 transition">See what is inside</a>
@@ -279,8 +287,8 @@
     </div>
   </section>
 
-  <!-- Closing CTA -->
-  <section class="border-t border-slate-200">
+  <!-- Closing CTA — an invitation to register, so it is removed entirely once signed in. -->
+  <section id="cta-section" class="border-t border-slate-200">
     <div class="max-w-6xl mx-auto px-5 py-20 text-center">
       <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
         Try the sign-in flow
@@ -517,6 +525,14 @@
     $("auth-out-mobile").classList.toggle("flex", !signedIn);
     $("auth-in-mobile").classList.toggle("hidden", !signedIn);
     $("auth-in-mobile").classList.toggle("flex", signedIn);
+
+    // The public home page is reachable while signed in — via the logo, the Home link, or the
+    // post-login redirect — so its calls to action have to follow the auth state too.
+    $("cta-register").classList.toggle("hidden", signedIn);
+    $("cta-dashboard").classList.toggle("hidden", !signedIn);
+    $("cta-section").classList.toggle("hidden", signedIn);
+    $("hero-line-out").classList.toggle("hidden", signedIn);
+    $("hero-line-in").classList.toggle("hidden", !signedIn);
 
     if (signedIn) {
       // textContent, not innerHTML: a display name comes from the user record and from
