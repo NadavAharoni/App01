@@ -60,6 +60,9 @@
   the build/deploy pipeline exists only as a console-created Cloud Build trigger. Nothing in the
   repo records how this app ships, and a fresh clone cannot reproduce it. Compare RiddleSite,
   which keeps its runtime flags in `cloudbuild.yaml`. Worth fixing before this becomes a template.
+- `sql/users_table.sql` is **syntax-checked but never executed** — there is no reachable database
+  from this machine. Run it once in the Neon SQL editor to confirm; both verification queries
+  should report `OK` on every row.
 - Replace the placeholder landing-page copy once a demo feature (e.g. per-user notes) exists —
   the hero should show off that feature rather than describe the template
 - Test local credentials register/login end-to-end

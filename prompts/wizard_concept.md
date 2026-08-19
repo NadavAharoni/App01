@@ -61,8 +61,15 @@ therefore also a portfolio piece and should carry the author's name.
   Cloud SDK installer does not update PATH for already-open processes.
 - **Walk the user through a real Neon signup.** Rejected Neon Launchpad / `npx neondb`
   (instant no-signup Postgres): its 72-hour expiry creates an "it stopped working" cliff and
-  teaches nothing about the service they will actually operate. Neon's signup is GitHub OAuth
-  with no card, so it is not where users are lost.
+  teaches nothing about the service they will actually operate. Neon's signup takes no card, so
+  it is not where users are lost.
+- **Sign up to Neon with Google, not GitHub.** Simply because most people already have a Google
+  account, so it is one fewer account to create before the first lesson — which matters now that
+  the course starts with the database and GitHub is not needed yet. Nothing is given up by this:
+  Neon accepts email, Google, GitHub or Microsoft, and its GitHub integration is added later from
+  the project's Integrations page regardless of how the account was created. Worth telling users
+  once: click the *same* button every time, since signing up with Google and later signing in
+  with GitHub can land you in a second, empty account.
 - **Region is not a free choice.** us-east1 is free-tier eligible; Tel Aviv (me-west1) is Tier 1
   priced but appears *not* free-tier eligible. Present it as a deliberate one-time fork with the
   cost stated, since region is effectively irreversible for a service. App01 itself is deployed in
@@ -79,6 +86,57 @@ therefore also a portfolio piece and should carry the author's name.
 - **Single source of truth for agent instructions.** Put the setup runbook in one plain
   `SETUP.md`; make `CLAUDE.md` / `AGENTS.md` / the skill file thin pointers to it. Codex and
   Gemini support then costs two lines each rather than a fork.
+
+## Course structure: the database comes first
+
+The course starts at Neon, not at the app. Students design and build a real schema before any
+web application exists.
+
+**Why, in order of weight:**
+
+1. **It is the natural entry point for industrial engineering.** Turning customer requirements
+   into a data model *is* the discipline — especially for students already working with a client.
+2. **It makes an existing exercise hands-on.** In previous years students built an ERD on paper or
+   in a modelling tool. Building it on a live database instead turns a diagram into something that
+   runs, rejects bad data, and can be queried.
+3. **It is easy to start.** Tables and rows are concrete, and a student is playing with real data
+   about five minutes after signing up. Building the website around it afterwards is a much
+   smaller conceptual step than starting with the website.
+
+Secondary, not a reason on its own: it also defers GCP billing — the highest-friction step — until
+students already have something they want to deploy.
+
+A useful side effect: Neon's SQL editor runs in the browser, so the first session needs no
+installs at all and works identically on Windows and macOS. That sidesteps the Windows-only
+limitation of phase 1 for exactly the session where a bad experience is most expensive.
+
+### The schema is the foundation, not a warm-up
+
+Students model their real project domain in the same Neon project the application will later use.
+Their tables are not throwaway practice.
+
+This makes the bridge to the app natural, and gives Claude Code its first genuinely convincing
+demonstration: *"build me a page for my `sale_transactions` table."* Their own domain model,
+on screen, from one prompt.
+
+### Modelling is the taught content
+
+This is where the lecturer's value is, and it is not about keeping the schema small — it is about
+getting it right. A sale-point domain (owners, products, sale transactions) raises every question
+worth teaching: which entities are real, where the relations sit, and how to type things properly
+— dates, phone numbers, addresses. The written report is the modelling work itself: use cases,
+action diagrams, and the ERD they translate into.
+
+### Sequence
+
+| Stage | Accounts needed | What happens |
+|---|---|---|
+| 1 — Schema | Neon (via Google) | Design and build the real schema in the Neon SQL editor |
+| 2 — Local app | GitHub | An agent builds the app from the template, running locally against that database |
+| 3 — Deploy | Google Cloud | Billing, provisioning, first deploy |
+
+The consequence for the wizard: it is **staged rather than one linear run**. Account signups and
+installs are still homework done ahead of time, but per stage rather than all at once.
 
 ## Wizard page design
 
@@ -122,6 +180,15 @@ running on the thing I am about to show you, for about ₪2/month" is a good ope
   (`architecture.md`, `devlog.md`). **The moment any sensitive scope is added (Drive, Calendar,
   Gmail), verification and the 100-user cap both switch on** and a student's demo breaks in a way
   they will not diagnose. This belongs as an explicit rule in the template's `CLAUDE.md`.
+- **`users` is reserved by the template.** Students design their own tables alongside it, never a
+  table of that name — redefining it breaks authentication in ways they cannot diagnose. Because
+  the course reaches the database before the app, the schema has to be available as SQL and not
+  only as a SQLAlchemy model: `sql/users_table.sql` in this repo creates the table if it is
+  missing and otherwise reports whether the live schema still matches what the app requires. It
+  checks the things that actually break the app — column names, types, lengths, nullability, and
+  the two unique indexes — and deliberately ignores defaults, which differ harmlessly between the
+  two creation paths. `models.py` remains the source of truth; the file documents how to
+  regenerate its DDL. Moves to the wizard repo later.
 - **Cost controls from commit one:** `--max-instances=1`, `min-instances=0`, a budget alert and a
   notification channel. RiddleSite's `setup-gcp.ps1` is the working reference.
 - **The free trial cliff.** GCP trial credit expires 90 days after signup; without upgrading to a
@@ -160,5 +227,9 @@ Adjacent layers:
   forkable on its own.
 - Which demo feature ships in the template — per-user notes is the leading candidate. Exactly one
   vertical slice: one table, list/create/delete, owner-scoped, one passing test. It is the pattern
-  students will copy.
+  students will copy. Open question now that the schema comes first: does the template still ship
+  a `notes` table, or does the demo slice get generated against the student's own tables instead?
+- How much of stage 1 happens in the Neon SQL editor versus with an agent. Writing DDL by hand is
+  part of the lesson; having Claude Code generate it from an ERD is the thing being taught later.
+  The boundary needs deciding before the first cohort.
 - Distribute the skill as a Claude Code plugin via a marketplace, or just in the template repo?
