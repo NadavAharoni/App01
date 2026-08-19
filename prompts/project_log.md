@@ -44,9 +44,10 @@
   `Dockerfile`.
 
 ### Next Steps
-- **GCP free trial expires ~2026-08-26** (₪889.79 credit, 7 days left as of 2026-08-19). Without
-  upgrading to a paid account the service stops and is eventually deleted. Every student following
-  the wizard will hit the same cliff 90 days after signing up — the wizard needs a page for it.
+- ~~GCP free trial expiry~~ — **resolved 2026-08-19** by the account owner, so the service is no
+  longer on a clock. The underlying issue still applies to *students*, not to this project: every
+  one of them hits the same cliff 90 days after signing up, so the wizard needs a page for it.
+  Tracked in `prompts/wizard_concept.md` under "Constraints the template must respect".
 - **Docs-only commits trigger a full rebuild and a new Cloud Run revision.** The build trigger has
   no ignored-files filter, so editing `project_log.md` ships a revision identical to the running
   one and burns build quota. Fix once the gcloud CLI is installed on this machine — set the
