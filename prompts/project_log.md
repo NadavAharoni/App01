@@ -31,9 +31,10 @@
   `tests/dom_i18n.test.js` (jsdom, 42 assertions, runs against local or production).
 - ✅ **Bilingual UI (English + Hebrew, RTL)** — language auto-detected from the browser on first
   visit, remembered in `localStorage`, switchable from the menu bar. All copy in `static/i18n.js`.
-  **Merged to `main` and live in production 2026-08-20** (revision `app01-00016-7sp`). The 42-case
-  jsdom suite was re-run against the production URL and passes there too. Tag `before-hebrew`
-  marks the last English-only commit if a rollback is ever needed.
+  **Merged to `main` and live in production 2026-08-20.** The 42-case jsdom suite passes against
+  the production URL, and the page was checked by eye on Android Chrome: RTL layout, mirrored
+  spacing and the `dir="ltr"` values all render correctly. Tag `before-hebrew` marks the last
+  English-only commit if a rollback is ever needed.
 
 ### What's Not Done Yet
 - ⬜ Local credentials login (form exists in UI, untested end-to-end)
@@ -169,9 +170,14 @@
   Hebrew rather than as a translation, and it leans on impersonal forms ("אפשר לפתוח",
   "פותחים, קוראים") because Hebrew has no gender-neutral second person — but that is a style
   choice worth a second opinion, and the marketing copy is placeholder text anyway.
-- **Look at the Hebrew page in a real browser.** The i18n work was verified with jsdom plus static
-  checks, which prove the strings, the direction and the switching logic but compute no layout.
-  Tailwind's logical utilities were confirmed present in the served bundle, not observed working.
+- ~~Look at the Hebrew page in a real browser~~ — **done 2026-08-20**, on Android Chrome against
+  production. The RTL flip is correct (brand right, hamburger left), the logical Tailwind utilities
+  resolve as intended (`ms-3` mirrors the product-shot window dots), and `dir="ltr"` holds the
+  hostname readable inside RTL text. The screenshot was of a signed-in session, so the Hebrew
+  signed-in hero line and the dashboard CTA are confirmed too. Nothing computes layout in the
+  automated suites, so this remains a manual step after RTL changes.
+- Optional polish: the Hebrew headline breaks between `כמעט` and `בחינם.`, splitting the phrase.
+  A non-breaking space in `hero.title_accent` would hold it together. Cosmetic only.
 - Test local credentials register/login end-to-end
 - Smoke test Cloud Run with local credentials
 - **pytest suite** — unit tests (JWT, password hashing) + integration tests via `httpx.AsyncClient` against the FastAPI routes; run in CI on every push
