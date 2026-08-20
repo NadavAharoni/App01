@@ -21,7 +21,9 @@
 - ✅ Deployed to Google Cloud Run
 - ✅ **Bilingual UI (English + Hebrew, RTL)** — language auto-detected from the browser on first
   visit, remembered in `localStorage`, switchable from the menu bar. All copy in `static/i18n.js`.
-  On branch `feature/i18n-hebrew`, not yet merged to `main`.
+  **Merged to `main` and live in production 2026-08-20** (revision `app01-00016-7sp`). The 46-case
+  jsdom suite was re-run against the production URL and passes there too. Tag `before-hebrew`
+  marks the last English-only commit if a rollback is ever needed.
 
 ### What's Not Done Yet
 - ⬜ Local credentials login (form exists in UI, untested end-to-end)
@@ -154,9 +156,9 @@ An incidental finding: the repo is public, and Cloud Build's GitHub check runs p
 project ID (in the check name) and the project number (in its Details link) to anyone. Not a
 credential, but not private either, and every student following the wizard will inherit it.
 
-### Bilingual UI: English + Hebrew with RTL
+### Bilingual UI: English + Hebrew with RTL — shipped to production
 
-Second language added, on `feature/i18n-hebrew`. The frontend turned out to be unusually
+Second language added on `feature/i18n-hebrew`, then merged and deployed. The frontend turned out to be unusually
 well-suited to it: one file, no build step, and only **five** direction-sensitive utilities in 636
 lines, because the layout was already flex/grid with `gap` and `mx-auto`. Setting `dir="rtl"` flips
 it correctly on its own.
@@ -184,6 +186,26 @@ states, runtime switching, persistence, the legacy `iw` language code, blocked `
 error-code translation including the unknown-code fallback. Plus static checks for key parity in
 both directions, orphaned keys, leftover untranslated text, and physical direction utilities.
 **Not** verified: actual rendered layout, since jsdom computes no CSS.
+
+### Shipping it, and what that taught us about the pipeline
+
+Sequence: pushed the `cloudbuild.yaml` commit to `main` on its own, waited for that build to go
+green, tagged that commit **`before-hebrew`** as the rollback point, then merged and pushed. Both
+builds succeeded in 70–80s. The multilingual app is live and the jsdom suite passes against the
+production URL as well as locally.
+
+Facts worth keeping:
+
+- **`gcloud builds list` also needs `--region global`.** Builds from a global trigger are global.
+  Querying `us-east1` returns an empty list with no error, which looks exactly like "no builds ran"
+  rather than "you asked the wrong region". Same trap as `triggers describe`.
+- **Pushing a tag does not trigger a build.** The trigger filters on `github.push.branch`, so
+  `before-hebrew` reached the remote without producing a revision. Tags are free.
+- Deploying the tag is a valid rollback: `gcloud run services update app01 --image <the image
+  tagged with 47fcc50>`, or revert the i18n commit and push.
+- `COPY . .` in the Dockerfile with no `.dockerignore` means a newly added static file needs
+  nothing extra to ship — checked before pushing, because a Dockerfile that copied files
+  individually would have silently omitted `static/i18n.js` and broken the page in production only.
 
 ## 2026-08-19 — Session 4
 
