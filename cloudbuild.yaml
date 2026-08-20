@@ -87,17 +87,24 @@ steps:
       - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID
       - --quiet
 
-  # Reap old images. Artifact Registry bills above 0.5 GB and each deploy adds a layer set, so
-  # without this the repository grows forever -- App01 reached 424 MB across 42 images before this
-  # step existed. Runs last, so the image just deployed is never a candidate.
+  # Reap old images. Artifact Registry bills above 0.5 GB and each deploy adds ~70 MB of layers,
+  # so without this the repository grows forever -- App01 reached 424 MB across 42 images before
+  # this step existed. Runs last, so the image just deployed is never a candidate.
+  #
+  # ONLY TAGGED IMAGES ARE COUNTED OR DELETED. This is the correction to the first version of this
+  # step, which kept "the newest 3 entries" and destroyed 18 revisions' images in one run. The
+  # repository namespace also holds untagged OCI manifests -- attestation and metadata artifacts a
+  # few KB in size -- and counting those as images meant the three keep-slots were spent on junk
+  # while real images were deleted. Every genuine deploy carries its commit sha as a tag, so tags
+  # are the reliable discriminator. Untagged manifests are never deleted: they are kilobytes, and
+  # some are referrers attached to an image that is being kept.
   #
   # allowFailure: cleanup must never fail an otherwise good deploy.
   # $$ escapes a literal $ so Cloud Build does not read it as a substitution.
   #
-  # The explicit permission check is the point: roles/artifactregistry.writer can push but NOT
-  # delete, so with allowFailure this step would reap nothing and say nothing -- which is exactly
-  # what happened in RiddleSite until artifactregistry.repoAdmin was granted. A silent no-op that
-  # looks like success is worse than a failure, so a denial is reported loudly here.
+  # roles/artifactregistry.writer can push but NOT delete, so without repoAdmin this step reaps
+  # nothing. Under allowFailure that would be silent, which is how it went unnoticed in RiddleSite,
+  # so a wholesale denial is reported loudly below.
   - id: Prune
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
@@ -108,18 +115,29 @@ steps:
         set -u
         IMAGE=$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_REPO_NAME/$_SERVICE_NAME
         KEEP=$_KEEP_IMAGES
-        echo "pruning $$IMAGE, keeping newest $$KEEP"
+        echo "pruning $$IMAGE -- keeping the newest $$KEEP TAGGED images"
 
-        gcloud artifacts docker images list "$$IMAGE"           --sort-by=~CREATE_TIME --format='value(version)' --quiet           | tail -n +$$((KEEP + 1)) > /tmp/stale
+        # createTime first so a plain reverse sort orders newest-first: ISO-8601 sorts
+        # lexicographically. This deliberately does not rely on --sort-by.
+        gcloud artifacts docker images list "$$IMAGE" --include-tags           --format='value(createTime,version,tags)' --quiet           | awk -F'	' 'NF>=3 && $$3 != ""' | sort -r > /tmp/tagged
 
+        kept=$$(head -n $$KEEP /tmp/tagged | wc -l | tr -d ' ')
+        tail -n +$$((KEEP + 1)) /tmp/tagged > /tmp/stale
         total=$$(wc -l < /tmp/stale | tr -d ' ')
-        echo "candidates: $$total"
+        echo "tagged images: $$(wc -l < /tmp/tagged | tr -d ' ') | keeping: $$kept | candidates: $$total"
         if [ "$$total" -eq 0 ]; then echo "nothing to prune"; exit 0; fi
 
         deleted=0
         failed=0
-        while read -r digest; do
+        skipped=0
+        while IFS=$$'	' read -r created digest tags; do
           [ -n "$$digest" ] || continue
+          # Belt and braces: never delete what this build just shipped, whatever the ordering said.
+          case " $$tags " in
+            *" $COMMIT_SHA "*|*"$COMMIT_SHA"*)
+              echo "skipping $$digest -- carries the tag just deployed"
+              skipped=$$((skipped + 1)); continue ;;
+          esac
           if gcloud artifacts docker images delete "$$IMAGE@$$digest" --quiet --delete-tags; then
             deleted=$$((deleted + 1))
           else
@@ -127,11 +145,11 @@ steps:
           fi
         done < /tmp/stale
 
-        echo "deleted=$$deleted failed=$$failed"
+        echo "deleted=$$deleted failed=$$failed skipped=$$skipped"
         if [ "$$failed" -gt 0 ] && [ "$$deleted" -eq 0 ]; then
-          echo "PRUNE FAILED: every delete was rejected. The Cloud Build service account almost"
-          echo "certainly has roles/artifactregistry.writer but not repoAdmin -- writer can push"
-          echo "but cannot delete. Storage will keep growing until that is granted."
+          echo "PRUNE FAILED: every delete was rejected. The Cloud Build service account most"
+          echo "likely has roles/artifactregistry.writer but not repoAdmin -- writer can push but"
+          echo "cannot delete. Storage will keep growing until that is granted."
           exit 1
         fi
         echo "prune complete"
