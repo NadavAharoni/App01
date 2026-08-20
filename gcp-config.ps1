@@ -80,8 +80,20 @@ $MinInstances = 0
 # prompts/wizard_concept.md. verify-gcp.ps1 reports that; creating them is a separate, explicitly
 # authorised step because it touches billing.
 $BillingAccount = "0144E8-569D37-8FE02B"
-# The alert email is intentionally absent: this repo is public, and committing an address here
-# would publish it to crawlers. Supply it via $env:APP01_ALERT_EMAIL when provisioning is added.
+$BillingCurrency = "ILS"          # must match the billing account, or budget creation is rejected
+$BudgetName      = "app01-monthly"
+$BudgetAmount    = 10             # ILS per calendar month
+$BudgetId        = "8cbfd7f4-3e46-4c0c-a8a8-bf020cf129d3"
+
+# NO notification channel, deliberately. A Cloud Monitoring channel exists to add an address that
+# is NOT a billing administrator, without granting it billing permissions. Here the intended
+# recipient IS the sole billing.admin on the account, so budget alerts already reach them: the
+# budget carries an empty notificationsRule, which means "email the billing admins". A channel
+# would be a second copy of the same destination, and the address would have to be committed to a
+# public repo to be verifiable. So verify-gcp.ps1 checks that a billing admin exists instead.
+#
+# The budget is scoped to THIS project only, so RiddleSite spend on a different billing account
+# cannot trip it and vice versa.
 
 # --- gcloud resolution --------------------------------------------------------
 # The Cloud SDK installer does not update PATH for already-open processes, so fall back to the

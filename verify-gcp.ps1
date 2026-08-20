@@ -264,38 +264,60 @@ if ($null -eq $sizeText) {
 }
 
 # --- Cost controls that should exist and do not -------------------------------
-# prompts/wizard_concept.md lists a budget alert and a notification channel as constraints the
-# template must respect. Reported rather than created: making them touches billing.
+# wizard_concept.md lists a budget alert and a notification channel as constraints the template
+# must respect. The channel turns out to be unnecessary here -- see gcp-config.ps1 -- so what is
+# checked is the property that actually matters: that a budget exists, is scoped to this project,
+# and that someone will actually receive its alerts.
 Section "Cost controls"
-$channels = & $gcloud beta monitoring channels list --project $ProjectId `
-    --format "value(name)" --quiet
-if ($LASTEXITCODE -ne 0) {
-    Warn "could not list notification channels"
-} elseif ([string]::IsNullOrWhiteSpace($channels)) {
-    Warn "no monitoring notification channel" `
-         "wizard_concept.md requires one. Without it a budget alert reaches only the billing-account admins."
-} else {
-    Pass "notification channel exists"
-}
 
-# Gated on the API being enabled rather than just calling and catching: if billingbudgets has
-# never been enabled there is definitively no budget, and calling anyway prints a 20-line
-# SERVICE_DISABLED error that buries every other finding. Enabling an API is a write, so this
-# reports and stops.
 $budgetApi = & $gcloud services list --enabled --project $ProjectId `
     --filter "config.name:billingbudgets.googleapis.com" --format "value(config.name)" --quiet
 if ([string]::IsNullOrWhiteSpace($budgetApi)) {
-    Warn "no billing budget -- the Budget API is not enabled on this project" `
-         "So there is definitively no budget, not merely an unreadable one. wizard_concept.md requires a budget alert; creating one touches billing and is a separate authorised step."
+    Fail "the Cloud Billing Budget API is not enabled" `
+         "So no budget can exist. Enable it with: gcloud services enable billingbudgets.googleapis.com --project $ProjectId"
 } else {
-    $budgets = & $gcloud billing budgets list --billing-account $BillingAccount `
-        --billing-project $ProjectId --format "value(displayName)" --quiet
-    if ($LASTEXITCODE -ne 0) {
-        Warn "could not list billing budgets" "The API is enabled but the call failed."
-    } elseif ([string]::IsNullOrWhiteSpace($budgets)) {
-        Warn "no billing budget configured" "wizard_concept.md requires one."
+    $bJson = & $gcloud billing budgets describe $BudgetId --billing-account $BillingAccount `
+        --billing-project $ProjectId --format json --quiet
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($bJson)) {
+        Fail "budget $BudgetId not found" "Expected a budget named '$BudgetName' on account $BillingAccount."
     } else {
-        Pass "billing budget exists: $budgets"
+        $b = ($bJson -join "`n") | ConvertFrom-Json
+        $amt = $b.amount.specifiedAmount
+        if ("$($amt.units)" -ne "$BudgetAmount" -or $amt.currencyCode -ne $BillingCurrency) {
+            Fail "budget is $($amt.units) $($amt.currencyCode)" "Declared as $BudgetAmount $BillingCurrency."
+        } else {
+            Pass "budget is $BudgetAmount $BillingCurrency per $($b.budgetFilter.calendarPeriod.ToLower())"
+        }
+
+        # Scoping matters both ways: an unscoped budget would be tripped by unrelated projects on
+        # the same billing account, and would not tell you which one was spending.
+        $scoped = @($b.budgetFilter.projects) -contains "projects/$ProjectNumber"
+        if (-not $scoped) {
+            Fail "budget is not scoped to this project" `
+                 "Filter: $(@($b.budgetFilter.projects) -join ', '). Expected projects/$ProjectNumber."
+        } else {
+            Pass "budget is scoped to this project only"
+        }
+
+        $thresholds = @($b.thresholdRules | ForEach-Object { [int]($_.thresholdPercent * 100) })
+        if ($thresholds.Count -eq 0) {
+            Fail "budget has no threshold rules" "It will never alert."
+        } else {
+            Pass "thresholds at $($thresholds -join '%, ')%"
+        }
+
+        # An empty notificationsRule means "email the billing administrators". That is only a real
+        # destination if such an administrator exists, so check rather than assume.
+        $admins = & $gcloud billing accounts get-iam-policy $BillingAccount `
+            --flatten "bindings[].members" --filter "bindings.role:roles/billing.admin" `
+            --format "value(bindings.members)" --quiet
+        if ([string]::IsNullOrWhiteSpace($admins)) {
+            Fail "budget alerts have no recipient" `
+                 "notificationsRule is empty, which means 'email the billing admins', but the account has none."
+        } else {
+            $n = @($admins -split "`n" | Where-Object { $_.Trim() }).Count
+            Pass "alerts reach $n billing admin(s) via the default rule"
+        }
     }
 }
 

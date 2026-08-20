@@ -24,6 +24,7 @@
   trigger run (steps `Build;Push;Deploy`, same Artifact Registry path as before).
 - ✅ **Docs- and test-only commits no longer redeploy.** `ignoredFiles` on the trigger covers
   `**/*.md`, `tests/**`, `package*.json`, `.gitignore`, `.env.example`.
+- ✅ **Budget alert** — 10 ILS/month, scoped to this project, alerting the billing admin by default
 - ✅ **Cloud drift check** — `verify-gcp.ps1` + `gcp-config.ps1`. Read-only; exits 1 on drift.
   Currently reports 0 drift and 3 warnings (see Next Steps).
 - ✅ **Test suite for the bilingual UI** — `tests/check_i18n.py` (static, dependency-free) and
@@ -149,11 +150,16 @@
   Porting it is a small, contained change, and RiddleSite has two details worth copying exactly:
   `allowFailure: true` so pruning never fails an otherwise good deploy, and `$$` to escape a
   literal `$` from Cloud Build's substitution pass.
-- **No budget alert and no notification channel**, which violates the cost-control constraint in
-  `wizard_concept.md`. The Budget API has never even been enabled on the project, so there is
-  definitively no budget rather than a misconfigured one. Creating both touches billing and was
-  deliberately left for explicit authorisation. An alert email must NOT be committed to this repo,
-  which is public; pass it via `$env:APP01_ALERT_EMAIL`.
+- ~~No budget alert~~ — **created 2026-08-20.** `app01-monthly`, 10 ILS per calendar month, scoped
+  to this project only, thresholds at 50/90/100% of actual spend plus 100% of forecast. Id
+  `8cbfd7f4-3e46-4c0c-a8a8-bf020cf129d3`.
+- ~~No notification channel~~ — **not needed, closed rather than deferred.** A Cloud Monitoring
+  channel exists to reach an address that is *not* a billing administrator. Here the intended
+  recipient is the sole `roles/billing.admin` on the account, and a budget with an empty
+  `notificationsRule` emails the billing admins by default, so a channel would be a second copy of
+  the same destination — and its address would have to be committed to a public repo to be
+  verifiable. `verify-gcp.ps1` checks that a billing admin exists instead, which is the property
+  that actually matters.
 - **The trigger could be renamed** from `rmgpgab-app01-us-east1-NadavAharoni-App01--maoch` to
   something readable. RiddleSite established that the earlier "the name is the handle" belief was
   wrong: the immutable handle is the trigger *id*, the name is a mutable label, and renaming
@@ -278,6 +284,31 @@ turns on it; the docs are corrected and the commit messages stand as written.
 
 Neither suite computes CSS, so rendered layout remains unverified by machine — a real-browser look
 after RTL changes is still a manual step, and is still outstanding.
+
+### Budget: 10 ILS, and one resource that turned out to be unnecessary
+
+Created `app01-monthly`: 10 ILS per calendar month, scoped to this project alone so spend on other
+projects cannot trip it and so an alert names the right culprit. Thresholds at 50%, 90% and 100% of
+actual spend, plus 100% of *forecast* — the forecast rule is the one that warns before the money is
+gone rather than after.
+
+The billing account is in ILS, which matters: a budget whose currency differs from the account is
+rejected outright, so that was checked first rather than discovered from an error.
+
+**The notification channel was dropped, not deferred.** The question "isn't that email already
+there?" was the right one. A Cloud Monitoring channel exists to reach somebody who is *not* a
+billing administrator, without granting them billing permissions. Here the intended recipient is
+the sole `roles/billing.admin` on the account, and a budget with an empty `notificationsRule` emails
+the billing admins by default — so a channel would have been a duplicate destination, and its
+address would have had to be committed to a public repo to be verifiable. `verify-gcp.ps1` now
+checks that a billing admin exists, which is the property that actually determines whether anyone
+receives an alert.
+
+Worth being clear about what a budget is for: it would not have caught the Artifact Registry leak,
+because cents never cross a threshold. It catches the expensive mistakes — an instance ceiling
+raised by accident, a runaway loop, a service left with min-instances above zero.
+
+`verify-gcp.ps1` now reports zero drift and zero warnings.
 
 ### Capping Artifact Registry, and breaking rollback while doing it
 
