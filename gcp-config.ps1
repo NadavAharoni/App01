@@ -32,6 +32,8 @@ $ArtifactHost    = "us-east1-docker.pkg.dev"
 $ArtifactImage   = "app01/app01"
 # Artifact Registry bills above 0.5 GB. Nothing prunes App01's images today, so this is a ceiling
 # being approached rather than one being respected -- verify-gcp.ps1 warns as it gets close.
+# Must match _KEEP_IMAGES in cloudbuild.yaml, which is where the prune step reads it.
+$KeepImages = 3
 $ArtifactFreeTierMB = 500
 $ArtifactWarnPct    = 80
 

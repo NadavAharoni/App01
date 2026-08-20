@@ -195,11 +195,40 @@ $raw = & $gcloud artifacts repositories describe $ArtifactRepo --project $Projec
 $sizeText = ($raw | Select-String -Pattern 'Repository Size:\s*([0-9.]+)\s*([KMGT]?B)' |
     Select-Object -First 1)
 
-$imgLines = & $gcloud artifacts docker images list "$ArtifactHost/$ProjectId/$ArtifactRepo/$ArtifactImage" `
-    --project $ProjectId --format "value(version)" --quiet 2>&1 | ForEach-Object { $_.ToString() }
-# Digests only; drops gcloud's "Listing items under project..." preamble.
-$imgCount = @($imgLines | Where-Object { $_ -match '^sha256:' }).Count
-Write-Output "  images:  $imgCount (nothing prunes them)"
+# Tagged images are the real deploys; untagged manifests are attestation/metadata artifacts of a
+# few KB that share the namespace. They are reported separately because conflating the two is what
+# made the first prune step delete 18 revisions worth of images.
+$imgJson = & $gcloud artifacts docker images list "$ArtifactHost/$ProjectId/$ArtifactRepo/$ArtifactImage" `
+    --project $ProjectId --include-tags --format json --quiet 2>&1 | ForEach-Object { $_.ToString() }
+# 2>&1 merged gcloud's informational stderr preamble into the same stream, so the JSON has to be
+# isolated first -- the document begins at the first line that is exactly "[".
+$imgs = @()
+$jsonStart = ($imgJson | Select-String -Pattern '^\s*\[\s*$' | Select-Object -First 1)
+if ($null -ne $jsonStart) {
+    $body = ($imgJson[($jsonStart.LineNumber - 1)..($imgJson.Count - 1)]) -join "`n"
+    try {
+        # Explicit foreach, not @(... | ConvertFrom-Json): in Windows PowerShell the pipeline form
+        # can hand back the whole JSON array as ONE element, which then silently reports 1 image
+        # and makes every per-item property an array.
+        $parsed = ConvertFrom-Json -InputObject $body
+        foreach ($x in $parsed) { $imgs += $x }
+    } catch { $imgs = @() }
+}
+$tagged   = @($imgs | Where-Object { $_.tags })
+$untagged = @($imgs | Where-Object { -not $_.tags })
+$liveMb = 0
+foreach ($i in $tagged) {
+    $bytes = 0
+    if ($null -ne $i.metadata -and $null -ne $i.metadata.imageSizeBytes) {
+        [void][double]::TryParse([string]$i.metadata.imageSizeBytes, [ref]$bytes)
+    }
+    $liveMb += $bytes / 1048576
+}
+$liveMb = [math]::Round($liveMb, 1)
+Write-Output "  tagged images: $($tagged.Count) (keeping $KeepImages), totalling $liveMb MB"
+if ($untagged.Count -gt 0) {
+    Write-Output "  untagged manifests: $($untagged.Count) (KB-scale metadata; never pruned)"
+}
 
 if ($null -eq $sizeText) {
     Warn "could not read repository size" "gcloud did not print a 'Repository Size:' line."
@@ -214,11 +243,21 @@ if ($null -eq $sizeText) {
         default { $mb = $n / 1048576 }
     }
     $pct  = [math]::Round($mb / $ArtifactFreeTierMB * 100, 1)
-    $line = "$([math]::Round($mb,1)) MB of the $ArtifactFreeTierMB MB free tier ($pct%)"
-    if ($mb -ge $ArtifactFreeTierMB) {
-        Fail "Artifact Registry is over the free tier" "$line. Nothing prunes these images, so it only grows. RiddleSite keeps the 3 newest via a prune step in cloudbuild.yaml; App01 has no such step."
-    } elseif ($pct -ge $ArtifactWarnPct) {
-        Warn "Artifact Registry is approaching the free tier" "$line. Nothing prunes these images. Consider porting RiddleSite's prune step into cloudbuild.yaml."
+    $line = "reported $([math]::Round($mb,1)) MB of the $ArtifactFreeTierMB MB free tier ($pct%); live tagged content is $liveMb MB"
+    # The reported figure lags deletion badly -- Artifact Registry reclaims asynchronously, so it
+    # can sit hundreds of MB above the actual content for hours after a prune. When the two
+    # disagree by a wide margin the gap is storage pending reclamation, not a real leak, so say so
+    # rather than raising an alarm that resolves itself.
+    $gap = [math]::Round($mb - $liveMb, 1)
+    if ($mb -ge $ArtifactFreeTierMB -and $liveMb -ge $ArtifactFreeTierMB) {
+        Fail "Artifact Registry is genuinely over the free tier" "$line. Both figures are over, so this is real content, not reclamation lag."
+    } elseif ($mb -ge $ArtifactFreeTierMB -or $pct -ge $ArtifactWarnPct) {
+        if ($gap -gt 50) {
+            Pass "Artifact Registry: $line -- the $gap MB gap is deletion pending reclamation"
+            Write-Output "          Reported size lags a prune by hours. Live content is what matters; re-check later."
+        } else {
+            Warn "Artifact Registry is approaching the free tier" "$line."
+        }
     } else {
         Pass "Artifact Registry within free tier -- $line"
     }

@@ -137,7 +137,13 @@
   should report `OK` on every row.
 - Replace the placeholder landing-page copy once a demo feature (e.g. per-user notes) exists —
   the hero should show off that feature rather than describe the template
-- **Artifact Registry is at 424 MB of the 500 MB free tier**, across 42 images, and nothing prunes
+- ~~Artifact Registry unbounded growth~~ — **capped 2026-08-20.** `cloudbuild.yaml` has a `Prune`
+  step keeping the newest 3 *tagged* images. Live content is now 134 MB. Two things to know: the
+  repository's *reported* size lags deletion by hours (it read 472 MB while holding 134 MB of
+  actual content, the difference being storage pending reclamation), and the first version of the
+  step was wrong — see the session entry. Re-check the reported size later to confirm it falls.
+  Original note kept for context:
+- **Artifact Registry was at 424 MB of the 500 MB free tier**, across 42 images, with nothing pruning
   them. Found by pulling RiddleSite, which hit the same thing and added a `prune` step to its
   `cloudbuild.yaml` keeping only the 3 newest images. App01 has no such step, so this only grows.
   Porting it is a small, contained change, and RiddleSite has two details worth copying exactly:
@@ -272,6 +278,37 @@ turns on it; the docs are corrected and the commit messages stand as written.
 
 Neither suite computes CSS, so rendered layout remains unverified by machine — a real-browser look
 after RTL changes is still a manual step, and is still outstanding.
+
+### Capping Artifact Registry, and breaking rollback while doing it
+
+The registry had reached 424 MB of the 500 MB free tier across 42 images with nothing reaping them.
+Added a `Prune` step to `cloudbuild.yaml` and granted the Cloud Build service account
+`roles/artifactregistry.repoAdmin`, scoped to the one repository — `artifactregistry.writer` can
+push but not delete, so without it the step reaps nothing and, under `allowFailure`, says nothing.
+
+**The first version of the step was wrong and did real damage.** It kept "the newest 3 entries" in
+the repository and deleted 40. The repository namespace also holds untagged OCI manifests —
+attestation and metadata artifacts a few KB in size — and keep-slots went to those instead of to
+real images. Result: every revision except the one then serving lost its image, so instant rollback
+via `update-traffic` is gone for all 19 older revisions. Recovery is `git revert` plus a push, which
+works because all ten dependencies are pinned exactly, but it is a ~90s rebuild rather than a
+traffic switch. The `before-hebrew` tag is still a valid rollback target by that route.
+
+Fixed by counting and deleting **tagged images only** — every genuine deploy carries its commit sha
+as a tag, so tags are the reliable discriminator — sorting newest-first without relying on
+`--sort-by`, and refusing to delete anything tagged with the sha the build just deployed. Untagged
+manifests are never touched: they are kilobytes and some are referrers attached to an image being
+kept. The shell logic was tested against simulated `gcloud` output containing the exact untagged
+manifests that caused the failure, asserting in particular that the *previous* image survives.
+
+**On severity, honestly:** this was reported as urgent, and unbounded growth did need capping, but
+the financial exposure was never dramatic — Artifact Registry charges roughly \$0.10 per GB per
+month beyond the free 0.5 GB, so overshooting would have cost cents. The damage done by rushing the
+fix was larger than the problem being fixed.
+
+`verify-gcp.ps1` now reports tagged and untagged counts separately with the live content size, and
+explains a large reported-vs-live gap as reclamation lag instead of raising an alarm that resolves
+itself.
 
 ### Pulling RiddleSite, and a drift checker instead of a provisioner
 
