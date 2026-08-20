@@ -1,0 +1,86 @@
+# Build and deploy App01 to Cloud Run.
+#
+# WHAT THIS FILE IS
+#   A faithful, reviewable copy of the build that actually ships App01 today. Until 2026-08-20
+#   those steps existed *only* inside a Cloud Build trigger created by the Cloud Run console
+#   wizard — an inline `build:` block with no `filename:`, so nothing in the repo recorded how
+#   this app was deployed and a fresh clone could not reproduce it.
+#
+# IMPORTANT: committing this file does NOT by itself change how deploys happen.
+#   The live trigger still carries its own inline build config, and that is what runs on a push
+#   to main. This file becomes live only when the trigger is repointed at it:
+#
+#     gcloud beta builds triggers export 68da5a2f-0efc-48f1-8214-c3dbd54b039f \
+#       --project project-159346f9-b041-4382-b4f --region global --destination trigger.yaml
+#     # in trigger.yaml: delete the whole `build:` block, add `filename: cloudbuild.yaml`,
+#     #                  and add an `ignoredFiles:` list so docs-only commits stop redeploying
+#     gcloud beta builds triggers import --source trigger.yaml \
+#       --project project-159346f9-b041-4382-b4f --region global
+#
+#   Export/edit/import is required because `gcloud builds triggers update github` cannot express
+#   a console-managed trigger and rejects it with INVALID_ARGUMENT.
+#   NOTE the trigger lives in region `global`, not us-east1 — us-east1 is the deploy target.
+#
+# DELIBERATE DIFFERENCES from the inline config it replaces:
+#   * `$PROJECT_ID` (a Cloud Build built-in) replaces a hardcoded `_AR_PROJECT_ID`, so the file
+#     is portable — this repo is intended to become a reusable template.
+#   * `--max-instances` / `--min-instances` are stated explicitly. They match the running service
+#     (maxScale 1, min unset = 0) so this is not a behaviour change, but the template must keep
+#     its cost controls in the repo rather than in console state nobody can review.
+#   * The `gcb-trigger-id` label is dropped: `_TRIGGER_ID` is a substitution the trigger injects,
+#     not a built-in, so in a file it would resolve to an empty string.
+
+substitutions:
+  _SERVICE_NAME: app01
+  # Artifact Registry path is <repo>/<service>; both are 'app01' here. Kept as a
+  # substitution rather than the $REPO_NAME built-in, which is empty outside a
+  # repo-triggered build and would silently produce a broken image path.
+  _REPO_NAME: app01
+  _DEPLOY_REGION: us-east1
+  _AR_HOSTNAME: us-east1-docker.pkg.dev
+  _AR_REPOSITORY: cloud-run-source-deploy
+
+steps:
+  # `--no-cache` is inherited from the original config. Each Cloud Build run starts on a clean
+  # worker with no layer cache to reuse, so it costs nothing here and keeps builds reproducible.
+  - id: Build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --no-cache
+      - -t
+      - $_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - .
+      - -f
+      - Dockerfile
+
+  - id: Push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+
+  # `services update` rather than `deploy`: the service already exists, and update leaves
+  # env vars and secrets set elsewhere untouched instead of resetting them.
+  - id: Deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - $_SERVICE_NAME
+      - --platform=managed
+      - --image=$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - --region=$_DEPLOY_REGION
+      - --max-instances=1
+      - --min-instances=0
+      - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID
+      - --quiet
+
+images:
+  - $_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: ALLOW_LOOSE

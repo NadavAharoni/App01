@@ -39,27 +39,69 @@
 - Docker image: `python:3.11-slim` (production target)
 - Cloud Run: service `app01`, region **us-east1** (free-tier eligible), scaling Min 0 / Max 1,
   URL `https://app01-295433370725.us-east1.run.app`
+- GCP project: ID `project-159346f9-b041-4382-b4f`, number `295433370725`
 - **Deploys happen by pushing to the GitHub repo**, not by `gcloud run deploy --source`. A Cloud
   Build trigger created through the Cloud Run console watches the repo and builds from the
-  `Dockerfile`.
+  `Dockerfile`. Trigger `rmgpgab-app01-us-east1-NadavAharoni-App01--maoch`, ID
+  `68da5a2f-0efc-48f1-8214-c3dbd54b039f`.
+- **The trigger lives in region `global`**, not `us-east1` — the deploy *target* is us-east1, the
+  trigger resource is not. Passing `--region us-east1` to `gcloud builds triggers describe`
+  returns `NOT_FOUND` even with full access, which reads exactly like a permissions problem and
+  is not one. Always `--region global` for this trigger.
+- **Only `main` deploys.** Verified 2026-08-20 by `gcloud builds triggers describe`:
+  `github.push.branch: ^main$`. Feature branches can be pushed freely — they build nothing and
+  create no revision. Work in progress is safe on a branch; merging to `main` is the deploy.
+- **The build config is inline in the trigger**, not a `cloudbuild.yaml` — the trigger holds a
+  `build:` block (docker build `--no-cache` → push to `us-east1-docker.pkg.dev` →
+  `gcloud run services update`) and has no `filename:`. This is the concrete reason the RiddleSite
+  warning applies: `gcloud builds triggers create/update github` cannot express an inline build,
+  so use `gcloud beta builds triggers export` → edit → `import`. It also means the deploy steps
+  are recoverable, so the "no deploy config in the repo" gap can be closed by committing them.
+- The trigger has **no `ignoredFiles`/`includedFiles` filter at all**, which confirms that
+  docs-only commits rebuild and deploy an identical revision.
+- **Two machines.** This repo is worked on from more than one Windows machine, so nothing about
+  the local toolchain is a project-wide fact — always re-verify rather than trusting a past note.
+- gcloud CLI: **present on the machine used 2026-08-20** (SDK 578.0.0). That retires the old
+  "once gcloud is installed" phrasing, but it does not mean gcloud is available in the current
+  session — run `gcloud --version` and check.
+- The **active gcloud account is whatever the last `gcloud auth login` set**, and several Google
+  identities are used across unrelated projects, so it may not be App01's owner and can differ
+  between sessions. When it is not, App01's project reads as `PERMISSION_DENIED` rather than
+  missing, and `gcloud projects list` simply omits it — neither is a fault. Confirm with
+  `gcloud auth list`, then pass `--project` and `--account` explicitly.
+- The repo is **public**, and Cloud Build's GitHub check runs expose both project identifiers to
+  anyone: the check *name* carries the project ID and its Details link carries the project number.
+  Readable unauthenticated via `/repos/NadavAharoni/App01/commits/main/check-runs`, or in the web
+  UI under a commit's Checks tab. Not a vulnerability — a project ID is not a credential — but do
+  not assume these IDs are private.
 
 ### Next Steps
 - ~~GCP free trial expiry~~ — **resolved 2026-08-19** by the account owner, so the service is no
   longer on a clock. The underlying issue still applies to *students*, not to this project: every
   one of them hits the same cliff 90 days after signing up, so the wizard needs a page for it.
   Tracked in `prompts/wizard_concept.md` under "Constraints the template must respect".
-- **Docs-only commits trigger a full rebuild and a new Cloud Run revision.** The build trigger has
-  no ignored-files filter, so editing `project_log.md` ships a revision identical to the running
-  one and burns build quota. Fix once the gcloud CLI is installed on this machine — set the
-  equivalent of RiddleSite's `TriggerIgnoredFiles = "**/*.md,*.ps1"`. Note RiddleSite's warning:
+- **Docs-only commits trigger a full rebuild and a new Cloud Run revision.** Confirmed
+  2026-08-20 — the trigger has no ignored-files filter, so editing `project_log.md` ships a
+  revision identical to the running one and burns build quota. Doable wherever gcloud is available and authenticated as the App01 owner
+  — check both before starting. Set the equivalent of RiddleSite's
+  `TriggerIgnoredFiles = "**/*.md,*.ps1"`. Note RiddleSite's warning:
   a trigger created by the Cloud Run console wizard is Cloud Run-managed and holds fields that
   `gcloud builds triggers create/update github` cannot express — those subcommands reject it with
   `INVALID_ARGUMENT`. Use `gcloud beta builds triggers export`, edit the YAML, then `import`,
   which round-trips the whole resource.
-- **No deploy config in the repo.** There is no `cloudbuild.yaml` and no `.github/workflows`, so
-  the build/deploy pipeline exists only as a console-created Cloud Build trigger. Nothing in the
-  repo records how this app ships, and a fresh clone cannot reproduce it. Compare RiddleSite,
-  which keeps its runtime flags in `cloudbuild.yaml`. Worth fixing before this becomes a template.
+- **Deploy config in the repo — half done.** `cloudbuild.yaml` now exists (added 2026-08-20) and
+  reproduces the trigger's inline build faithfully: same three steps, and the templated image path
+  was checked against Artifact Registry and resolves to the identical
+  `cloud-run-source-deploy/app01/app01` it pushes to today. It also states `--max-instances=1` /
+  `--min-instances=0` explicitly, which the inline config never did — those cost controls were
+  console-only state before, despite `wizard_concept.md` requiring them in the repo.
+  **The file is not live yet.** The trigger still carries its own inline `build:` block, and that
+  is what runs on a push to main. Remaining work, all in one export/import round trip: delete the
+  inline `build:`, add `filename: cloudbuild.yaml`, and add `ignoredFiles: ["**/*.md"]` so
+  docs-only commits stop shipping identical revisions. The exact commands are in a comment at the
+  top of `cloudbuild.yaml`. Still no `.github/workflows`, which is fine — Cloud Build is the
+  pipeline. The file has been syntax-checked but **never executed**; the first push to main after
+  the trigger is repointed is the real test, so watch that build.
 - `sql/users_table.sql` is **syntax-checked but never executed** — there is no reachable database
   from this machine. Run it once in the Neon SQL editor to confirm; both verification queries
   should report `OK` on every row.
