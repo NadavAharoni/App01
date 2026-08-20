@@ -203,6 +203,32 @@ running on the thing I am about to show you, for about ₪2/month" is a good ope
   subcommands reject console-managed triggers outright. App01 currently has no `cloudbuild.yaml`
   and no `.github/workflows`, which must be fixed before it becomes a template.
 
+## Multilingual template: settled 2026-08-20
+
+**Decision: the template ships bilingual (English + Hebrew), with the language auto-detected from
+the browser on first visit and remembered thereafter.** Rationale: the first cohorts are Israeli
+students, and a Hebrew-speaking student demoing to a Hebrew-speaking audience should not have to
+retrofit RTL into a finished app. Retrofitting is the expensive path — direction leaks into every
+layout decision, so a template that is LTR-only quietly forces LTR-only apps.
+
+What the template carries:
+
+- `static/i18n.js` — one file, both dictionaries, plus the detection and switching runtime. The
+  teaching value is that a student has exactly one place to look for text.
+- Logical Tailwind utilities throughout, so `dir="rtl"` flips the layout without per-component work.
+- `dir="ltr"` on the values that need it (email, UUID, shell commands, credential inputs).
+- Error codes rather than English sentences from the API.
+
+**Cost, stated honestly:** every copy change is now two edits instead of one, and a student who
+only ever wants English pays that tax for nothing. The mitigation is that the *plumbing* is what
+is expensive to add later, while a dictionary is cheap to ignore — an English-only student can
+leave `he` untouched and never think about it. If this proves annoying in a real classroom, the
+fallback is the "template, but opt-in" shape: keep the layer, ship only the English dictionary.
+
+**Open:** whether the wizard page itself should be bilingual. It is the first thing a student sees
+and the argument for Hebrew is stronger there than in the template, but it is a separate artifact
+with a separate audience (it also serves as the author's portfolio piece, which argues for English).
+
 ## Prior art
 
 Nothing found that covers the bare-Windows-machine → deployed-URL path for non-developers on an

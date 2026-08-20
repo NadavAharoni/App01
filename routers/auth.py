@@ -17,6 +17,15 @@ from auth import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Error `detail` values are stable machine codes, not sentences. The UI is multilingual, so the
+# wording lives in static/i18n.js under matching "err.<code>" keys and the client translates
+# whatever code it gets; an unrecognised code falls back to a generic message. Changing a code
+# here without adding the key there silently degrades the message, so change both together.
+#
+# The google_* codes are the exception worth knowing about: they are raised inside the OAuth
+# redirect, where the browser is following a redirect rather than reading JSON, so they surface as
+# FastAPI's default error page instead of in the dialog. That predates i18n and is unchanged here.
+
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
@@ -72,11 +81,11 @@ def _set_auth_cookie(response: Response, user: User) -> None:
 async def register(body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="email_taken")
 
     result2 = await db.execute(select(User).where(User.username == body.username))
     if result2.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Username already taken")
+        raise HTTPException(status_code=400, detail="username_taken")
 
     user = User(
         email=body.email,
@@ -96,7 +105,7 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
     if not user or not user.hashed_password or not verify_password(body.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="invalid_credentials")
     _set_auth_cookie(response, user)
     return UserOut.model_validate(user)
 
@@ -144,7 +153,7 @@ async def google_callback(request: Request, code: str, response: Response, db: A
             },
         )
         if token_resp.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to exchange Google token")
+            raise HTTPException(status_code=400, detail="google_exchange")
         tokens = token_resp.json()
 
         # Fetch user info
@@ -153,12 +162,12 @@ async def google_callback(request: Request, code: str, response: Response, db: A
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
         if userinfo_resp.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to fetch Google user info")
+            raise HTTPException(status_code=400, detail="google_userinfo")
         info = userinfo_resp.json()
 
     email = info.get("email")
     if not email:
-        raise HTTPException(status_code=400, detail="Google account has no email")
+        raise HTTPException(status_code=400, detail="google_no_email")
 
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()

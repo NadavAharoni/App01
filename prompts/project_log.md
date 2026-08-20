@@ -19,6 +19,9 @@
 - ✅ Neon Postgres connected; `users` table auto-created on startup
 - ✅ App runs locally on Python 3.14 via `python -m uvicorn main:app --reload --port 8080`
 - ✅ Deployed to Google Cloud Run
+- ✅ **Bilingual UI (English + Hebrew, RTL)** — language auto-detected from the browser on first
+  visit, remembered in `localStorage`, switchable from the menu bar. All copy in `static/i18n.js`.
+  On branch `feature/i18n-hebrew`, not yet merged to `main`.
 
 ### What's Not Done Yet
 - ⬜ Local credentials login (form exists in UI, untested end-to-end)
@@ -31,6 +34,17 @@
 - `load_dotenv()` is called in `main.py` — `.env` is picked up automatically, no need to set env vars manually when running locally
 - Cloud Run terminates HTTPS at the ingress — `ProxyHeadersMiddleware` in `main.py` ensures `request.base_url` reflects the correct `https://` scheme
 - **Tailwind CDN has two traps, both hit in `static/index.html`:** (1) `@apply` in a `<style>` block does nothing — it is a build-time directive, so write plain CSS; (2) the CDN only compiles class names it can find in the document, so a class that exists *only* inside a JS string (e.g. `lg:inline` in an `innerHTML` template) is never generated. Keep both auth states in the static HTML and toggle them instead of injecting markup.
+- **RTL: the bidi algorithm is the thing that bites.** An LTR run (email, UUID, hostname, shell
+  command) placed inside RTL text gets reordered on screen and renders as nonsense — a UUID's
+  hyphens shuffle and the id becomes unreadable. Every such value carries `dir="ltr"`. If a value
+  ever looks scrambled in Hebrew, this is why, and the fix is always `dir="ltr"`, never rewriting
+  the string.
+- **RTL: use logical Tailwind utilities only** (`ms-`/`me-`/`ps-`/`pe-`/`text-start`), never
+  `ml-`/`mr-`/`pl-`/`pr-`/`text-left`. The CDN is Tailwind **3.4.17**, verified by fetching it,
+  which supports all of them. A physical utility is a bug visible only in Hebrew.
+- `i18n.js` is loaded **blocking and first** in `<head>` on purpose: it sets `<html lang/dir>`
+  before first paint. Making it `defer`, moving it after the stylesheets, or converting the
+  dictionary to fetched JSON all reintroduce a visible flash of English LTR.
 - No `.env` exists on this machine — `DATABASE_URL` and `JWT_SECRET` must be supplied before the app will import (`database.py` and `auth.py` read them at module level)
 
 ### Environment
@@ -107,12 +121,69 @@
   should report `OK` on every row.
 - Replace the placeholder landing-page copy once a demo feature (e.g. per-user notes) exists —
   the hero should show off that feature rather than describe the template
+- **Have a native Hebrew reader review the copy in `static/i18n.js`.** It was written to read as
+  Hebrew rather than as a translation, and it leans on impersonal forms ("אפשר לפתוח",
+  "פותחים, קוראים") because Hebrew has no gender-neutral second person — but that is a style
+  choice worth a second opinion, and the marketing copy is placeholder text anyway.
+- **Look at the Hebrew page in a real browser.** The i18n work was verified with jsdom plus static
+  checks, which prove the strings, the direction and the switching logic but compute no layout.
+  Tailwind's logical utilities were confirmed present in the served bundle, not observed working.
 - Test local credentials register/login end-to-end
 - Smoke test Cloud Run with local credentials
 - **pytest suite** — unit tests (JWT, password hashing) + integration tests via `httpx.AsyncClient` against the FastAPI routes; run in CI on every push
 - **Browser smoke tests** — automated end-to-end verification against Cloud Run after deploy (local credentials test account; Google OAuth verified manually)
 
 ---
+
+## 2026-08-20 — Session 5
+
+### Deploy pipeline recorded, and the trigger's actual behaviour established
+
+`gcloud` turned out to be installed on this machine, which unblocked questions that had been open
+since the trigger was created in the Cloud Run console. Answers, all now in **Current Status**:
+the trigger lives in region **`global`** (asking for `us-east1` returns `NOT_FOUND` even with full
+access, which reads exactly like a permissions error), it fires only on **`^main$`** so feature
+branches never deploy, it has **no `ignoredFiles`** filter, and its build config is **inline** —
+which is why `gcloud builds triggers update github` rejects it and export/import is required.
+
+Committed `cloudbuild.yaml` reproducing that build. The templated image path was checked against
+Artifact Registry and resolves to the same `cloud-run-source-deploy/app01/app01` in use today.
+It is **not live** — repointing the trigger at it is a separate change.
+
+An incidental finding: the repo is public, and Cloud Build's GitHub check runs publish both the
+project ID (in the check name) and the project number (in its Details link) to anyone. Not a
+credential, but not private either, and every student following the wizard will inherit it.
+
+### Bilingual UI: English + Hebrew with RTL
+
+Second language added, on `feature/i18n-hebrew`. The frontend turned out to be unusually
+well-suited to it: one file, no build step, and only **five** direction-sensitive utilities in 636
+lines, because the layout was already flex/grid with `gap` and `mx-auto`. Setting `dir="rtl"` flips
+it correctly on its own.
+
+- `static/i18n.js` — new. 75 keys × 2 languages, plus the detection/switching runtime. Loaded
+  blocking from `<head>` so `lang`/`dir` are set before first paint.
+- `static/index.html` — 34 edits: `data-i18n` hooks throughout, the five physical utilities
+  swapped for logical ones, `dir="ltr"` on every LTR-by-nature value, and a language switcher in
+  both the desktop bar and the mobile menu.
+- `routers/auth.py` — six English `detail` sentences became stable codes (`email_taken`, …),
+  translated client-side against `err.*` keys. Unknown codes fall back to a generic message.
+- Heebo added alongside Inter: Inter has no Hebrew glyphs, so without it Hebrew fell back to a
+  system face and looked like a different site.
+
+Judgement calls worth knowing about: the hero headline is **three** keys rather than one, because
+its `<br class="hidden sm:block">` is a deliberate desktop break that each language wants
+elsewhere — and keeping the tag in the markup also keeps `sm:block` visible to the Tailwind CDN,
+which only compiles classes it can find in the document. The `users` table name is split out of
+its sentence so translation cannot touch it. Shell commands are left untranslated inside a
+`dir="ltr"` block while their comments are translated. The switcher labels ("EN", "עברית") are each
+written in their own language and deliberately not translated.
+
+Verified with jsdom against the running server: 46 assertions over both languages, both auth
+states, runtime switching, persistence, the legacy `iw` language code, blocked `localStorage`, and
+error-code translation including the unknown-code fallback. Plus static checks for key parity in
+both directions, orphaned keys, leftover untranslated text, and physical direction utilities.
+**Not** verified: actual rendered layout, since jsdom computes no CSS.
 
 ## 2026-08-19 — Session 4
 

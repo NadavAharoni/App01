@@ -14,6 +14,32 @@ Also read `prompts/wizard_concept.md` when the work touches this repo's role as 
 - **Never assume which `gcloud` account is active.** It is whatever the last `gcloud auth login` left behind, on whichever machine this session is running, and more than one Google identity is used across projects — so it may or may not be the one that owns App01, and it can change between sessions. A `gcloud projects list` that comes back without App01 in it therefore means nothing is wrong. Check `gcloud auth list` and `gcloud config list` first, and pass `--project` / `--account` explicitly instead of trusting the active config. IDs are in `prompts/project_log.md` under **Environment**.
 - **Do not assume anything about the local toolchain across sessions.** Work on this repo happens from two different machines, so "X is installed" is never a durable fact — a tool present last session may be absent this one. Verify with a version check before relying on it, and when recording a finding in `project_log.md`, write it as an observation with its date and machine, not as a property of the project.
 
+## Multilingual (Hebrew / RTL)
+
+The UI ships in English and Hebrew. Hebrew is RTL, which makes a few rules non-negotiable:
+
+- **All user-visible text lives in `static/i18n.js`.** Adding UI copy means adding a key there and
+  referencing it from the markup as `data-i18n="key"` (or `data-i18n-placeholder` /
+  `data-i18n-aria-label` for attributes). Never hardcode a sentence in `index.html`, and never
+  assemble one in JS. Both dictionaries must carry the same key set — a key present in one and
+  missing from the other falls back silently to English and nobody notices.
+- **Use logical Tailwind utilities, never physical ones.** `ms-*` / `me-*` / `ps-*` / `pe-*` /
+  `text-start` / `text-end` / `start-*` / `end-*`, never `ml-*`, `mr-*`, `pl-*`, `pr-*`,
+  `text-left`, `text-right`. The CDN serves Tailwind 3.4.17, which supports all of them. A
+  physical utility is a layout bug that only shows up in Hebrew, so it survives review easily.
+- **Anything inherently LTR needs `dir="ltr"`.** Email addresses, UUIDs, hostnames, shell commands
+  and the credential inputs. Without it the Unicode bidi algorithm reorders the run inside RTL
+  text and it renders scrambled — a UUID is the worst case, since its hyphens get shuffled and the
+  id becomes unreadable. This is the single most common way an RTL port looks broken.
+- **API errors return codes, not sentences.** `routers/auth.py` raises `detail="email_taken"`;
+  the wording is `err.email_taken` in `i18n.js`. Change a code without adding the key and the
+  message quietly degrades to the generic one. Change both together.
+- **`i18n.js` must stay first and stay blocking in `<head>`.** It sets `<html lang>` and
+  `<html dir>` during head parsing, before anything is painted. Defer it, move it, or turn the
+  dictionary into a fetched `.json`, and Hebrew visitors get a visible flash of English LTR.
+- **Adding a language** means one entry in `I18N_LANGS` plus one dictionary. Nothing else should
+  need to change; if it does, something has been hardcoded that should not be.
+
 ## Server
 
 Start the dev server with:

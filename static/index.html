@@ -1,13 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Pre-JS default only. applyI18n() replaces this with meta.title for the active language. -->
   <title>App01 — an example cloud app</title>
+
+  <!-- BLOCKING, and before anything visual: i18n.js sets <html lang> and <html dir> while the
+       head is still parsing, so a Hebrew visitor never sees an LTR frame flash past. Everything
+       below may assume the dictionary and the direction are already in place. -->
+  <script src="/static/i18n.js"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+  <!-- Heebo supplies the Hebrew glyphs Inter simply does not have. Without it Hebrew text falls
+       back to a system face and looks like it belongs to a different site. -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Heebo:wght@400;500;600;700;800&display=swap"
         rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -48,6 +56,14 @@
     @media (prefers-reduced-motion: reduce) {
       *, .card-hover { transition: none !important; animation: none !important; transform: none !important; }
     }
+
+    /* Hebrew type. Tailwind's preflight sets font-family on `html`, so this selector needs to be
+       at least as specific to win. Inter stays in the stack because the untranslated product
+       names (FastAPI, Cloud Run) still render through it. */
+    html[lang="he"] { font-family: "Heebo", "Inter", system-ui, sans-serif; }
+
+    /* The active choice in the language switcher. */
+    .lang-active { color: #4F46E5; background: #EEF2FF; }
   </style>
 </head>
 
@@ -66,9 +82,9 @@
     </a>
 
     <div class="hidden md:flex items-center gap-7 text-sm font-medium text-slate-600">
-      <a href="#features" class="hover:text-slate-900 transition">Features</a>
-      <a href="#stack" class="hover:text-slate-900 transition">Stack</a>
-      <a href="#/dashboard" onclick="showView('dashboard')" id="nav-dashboard"
+      <a href="#features" data-i18n="nav.features" class="hover:text-slate-900 transition">Features</a>
+      <a href="#stack" data-i18n="nav.stack" class="hover:text-slate-900 transition">Stack</a>
+      <a href="#/dashboard" onclick="showView('dashboard')" id="nav-dashboard" data-i18n="nav.dashboard"
          class="hidden hover:text-slate-900 transition">Dashboard</a>
     </div>
 
@@ -76,24 +92,37 @@
          strings by JS: the Tailwind CDN only compiles classes it can find in the document, so a
          responsive class that appears only inside a JS string (lg:inline) is never generated. -->
     <div class="hidden md:flex items-center gap-2">
+      <!-- Language switcher. The button labels are each written in their own language and are
+           therefore NOT translated — applyI18n() fills them from I18N_LANGS so the text has a
+           single home; the markup carries the same words as a pre-JS fallback. -->
+      <div class="flex items-center rounded-lg border border-slate-200 overflow-hidden me-1"
+           role="group" aria-label="Change language" data-i18n-aria-label="nav.lang_switch">
+        <button type="button" data-lang="en" onclick="setLang('en')"
+                class="px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100
+                       transition">EN</button>
+        <button type="button" data-lang="he" onclick="setLang('he')"
+                class="px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100
+                       transition">עברית</button>
+      </div>
       <div id="auth-out" class="flex items-center gap-2">
-        <button onclick="openAuth('login')"
+        <button onclick="openAuth('login')" data-i18n="nav.signin"
                 class="px-3.5 py-1.5 text-sm rounded-lg text-slate-600 hover:bg-slate-100
                        font-medium transition">Sign in</button>
-        <button onclick="openAuth('register')"
+        <button onclick="openAuth('register')" data-i18n="nav.signup"
                 class="px-3.5 py-1.5 text-sm rounded-lg bg-brand text-white hover:bg-brand-dark
                        font-medium transition">Sign up</button>
       </div>
       <div id="auth-in" class="hidden items-center gap-3">
         <span id="user-label" class="hidden lg:inline text-sm text-slate-500 max-w-[14rem] truncate"></span>
-        <button onclick="handleLogout()"
+        <button onclick="handleLogout()" data-i18n="nav.signout"
                 class="px-3.5 py-1.5 text-sm rounded-lg border border-slate-300 text-slate-600
                        hover:bg-slate-50 transition">Sign out</button>
       </div>
     </div>
 
     <button id="menu-toggle" aria-controls="mobile-menu" aria-expanded="false" aria-label="Open menu"
-            class="md:hidden p-2 -mr-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
+            data-i18n-aria-label="nav.open_menu"
+            class="md:hidden p-2 -me-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
       <svg id="icon-open" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8"
            viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
       <svg id="icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" stroke-width="1.8"
@@ -103,24 +132,33 @@
 
   <div id="mobile-menu" class="hidden md:hidden border-t border-slate-200 bg-white">
     <div class="px-5 py-4 flex flex-col gap-1 text-slate-700 font-medium">
-      <a href="#features" class="py-2.5 hover:text-brand transition">Features</a>
-      <a href="#stack" class="py-2.5 hover:text-brand transition">Stack</a>
+      <a href="#features" data-i18n="nav.features" class="py-2.5 hover:text-brand transition">Features</a>
+      <a href="#stack" data-i18n="nav.stack" class="py-2.5 hover:text-brand transition">Stack</a>
       <a href="#/dashboard" onclick="showView('dashboard')" id="nav-dashboard-mobile"
-         class="hidden py-2.5 hover:text-brand transition">Dashboard</a>
+         data-i18n="nav.dashboard" class="hidden py-2.5 hover:text-brand transition">Dashboard</a>
       <div class="flex flex-col gap-2 pt-3 mt-2 border-t border-slate-100">
         <div id="auth-out-mobile" class="flex flex-col gap-2">
-          <button onclick="openAuth('login')"
+          <button onclick="openAuth('login')" data-i18n="nav.signin"
                   class="w-full px-4 py-2.5 text-sm rounded-lg border border-slate-300 text-slate-700
                          hover:bg-slate-50 font-medium transition">Sign in</button>
-          <button onclick="openAuth('register')"
+          <button onclick="openAuth('register')" data-i18n="nav.signup"
                   class="w-full px-4 py-2.5 text-sm rounded-lg bg-brand text-white hover:bg-brand-dark
                          font-medium transition">Sign up</button>
         </div>
         <div id="auth-in-mobile" class="hidden flex-col gap-2">
           <span id="user-label-mobile" class="text-sm text-slate-500 py-1 truncate"></span>
-          <button onclick="handleLogout()"
+          <button onclick="handleLogout()" data-i18n="nav.signout"
                   class="w-full px-4 py-2.5 text-sm rounded-lg border border-slate-300 text-slate-600
                          hover:bg-slate-50 transition">Sign out</button>
+        </div>
+        <div class="flex items-center gap-2 pt-3 mt-2 border-t border-slate-100"
+             role="group" aria-label="Change language" data-i18n-aria-label="nav.lang_switch">
+          <button type="button" data-lang="en" onclick="setLang('en')"
+                  class="flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200
+                         text-slate-500 hover:bg-slate-50 transition">EN</button>
+          <button type="button" data-lang="he" onclick="setLang('he')"
+                  class="flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200
+                         text-slate-500 hover:bg-slate-50 transition">עברית</button>
         </div>
       </div>
     </div>
@@ -135,48 +173,56 @@
        build something with it. This is the first thing to rewrite: say what YOUR app does. -->
   <section class="bloom relative isolate max-w-6xl mx-auto px-5 pt-20 pb-16 sm:pt-28 text-center">
     <span class="inline-flex items-center gap-2 text-xs font-medium text-slate-600 bg-white
-                 border border-slate-200 rounded-full pl-2 pr-3 py-1 mb-7 shadow-sm">
-      <span class="text-[10px] font-semibold bg-brand-light text-brand rounded-full px-2 py-0.5">DEMO</span>
-      Example app
+                 border border-slate-200 rounded-full ps-2 pe-3 py-1 mb-7 shadow-sm">
+      <span data-i18n="hero.badge_demo"
+            class="text-[10px] font-semibold bg-brand-light text-brand rounded-full px-2 py-0.5">DEMO</span>
+      <span data-i18n="hero.badge_text">Example app</span>
     </span>
 
+    <!-- Three keys rather than one. The <br> is a deliberate desktop line break and each
+         language wants it somewhere different; keeping the tag in the markup also keeps
+         `sm:block` visible to the Tailwind CDN, which only compiles classes it can find in the
+         document and would never generate one that existed only inside a JS string. -->
     <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.05]">
-      An example app, running<br class="hidden sm:block" />
-      in the cloud
-      <span class="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-        for almost nothing.</span>
+      <span data-i18n="hero.title_lead">An example app, running</span><br class="hidden sm:block" />
+      <span data-i18n="hero.title_mid">in the cloud</span>
+      <span data-i18n="hero.title_accent"
+            class="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">for almost nothing.</span>
     </h1>
 
     <p class="mt-6 text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-      It signs you in, keeps your data in a real database, and lives at a public URL — the parts
-      every app needs, already working.
-      <span id="hero-line-out">Create an account and have a look around.</span>
-      <span id="hero-line-in" class="hidden">You are signed in — open your dashboard to see what
-        the app knows about you.</span>
+      <span data-i18n="hero.tagline">It signs you in, keeps your data in a real database, and
+        lives at a public URL — the parts every app needs, already working.</span>
+      <span id="hero-line-out" data-i18n="hero.line_out">Create an account and have a look around.</span>
+      <span id="hero-line-in" class="hidden" data-i18n="hero.line_in">You are signed in — open your
+        dashboard to see what the app knows about you.</span>
     </p>
 
     <!-- Signed-out and signed-in calls to action are both in the markup and toggled, so a
          signed-in visitor is never told to create an account they already have. -->
     <div class="mt-9 flex flex-col sm:flex-row gap-3 justify-center">
-      <button id="cta-register" onclick="openAuth('register')"
+      <button id="cta-register" onclick="openAuth('register')" data-i18n="hero.cta_register"
               class="px-6 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold
                      shadow-lg shadow-indigo-600/20 transition">Create an account</button>
-      <button id="cta-dashboard" onclick="showView('dashboard')"
+      <button id="cta-dashboard" onclick="showView('dashboard')" data-i18n="hero.cta_dashboard"
               class="hidden px-6 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold
                      shadow-lg shadow-indigo-600/20 transition">Open your dashboard</button>
-      <a href="#features"
+      <a href="#features" data-i18n="hero.cta_inside"
          class="px-6 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50
                 font-semibold text-slate-700 transition">See what is inside</a>
     </div>
 
     <!-- Product shot, drawn rather than screenshotted so it never goes stale. -->
     <div class="mt-16 mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white
-                shadow-2xl shadow-slate-900/10 overflow-hidden text-left">
+                shadow-2xl shadow-slate-900/10 overflow-hidden text-start">
       <div class="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 bg-slate-50">
         <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
         <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
         <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
-        <span class="ml-3 text-[11px] text-slate-400 font-mono">app01-xxxx.run.app</span>
+        <!-- dir="ltr": a hostname dropped into an RTL line gets reordered by the bidi
+             algorithm and renders scrambled. -->
+        <span dir="ltr" data-i18n="hero.mock_url"
+              class="ms-3 text-[11px] text-slate-400 font-mono">app01-xxxx.run.app</span>
       </div>
       <div class="p-6 sm:p-8">
         <div class="flex items-center gap-4 mb-6">
@@ -199,10 +245,11 @@
   <!-- Features -->
   <section id="features" class="border-t border-slate-200 bg-slate-50/60 scroll-mt-16">
     <div class="max-w-6xl mx-auto px-5 py-20 sm:py-24">
-      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 text-center">
+      <h2 data-i18n="features.heading"
+          class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 text-center">
         The boring parts, already working
       </h2>
-      <p class="mt-4 text-slate-600 text-center max-w-xl mx-auto leading-relaxed">
+      <p data-i18n="features.sub" class="mt-4 text-slate-600 text-center max-w-xl mx-auto leading-relaxed">
         Auth, database and deployment are solved. You start at the interesting part.
       </p>
 
@@ -214,8 +261,8 @@
               <path stroke-linecap="round" stroke-linejoin="round"
                     d="M16 12a4 4 0 10-8 0 4 4 0 008 0zM4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
           </div>
-          <h3 class="font-semibold text-slate-900 text-lg">Authentication</h3>
-          <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+          <h3 data-i18n="features.auth_t" class="font-semibold text-slate-900 text-lg">Authentication</h3>
+          <p data-i18n="features.auth_d" class="mt-2 text-sm text-slate-600 leading-relaxed">
             Sign in with Google, or with email and password. The session is a signed JWT in an
             HttpOnly cookie, never a token sitting in local storage.
           </p>
@@ -228,10 +275,13 @@
               <ellipse cx="12" cy="6" rx="8" ry="3"/><path stroke-linecap="round"
                     d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
           </div>
-          <h3 class="font-semibold text-slate-900 text-lg">Managed Postgres</h3>
+          <h3 data-i18n="features.db_t" class="font-semibold text-slate-900 text-lg">Managed Postgres</h3>
+          <!-- Split around the <code>: `users` is a table name, so it must survive translation
+               untouched rather than being swept into a sentence key. -->
           <p class="mt-2 text-sm text-slate-600 leading-relaxed">
-            A real Neon database with a <code class="text-xs bg-slate-100 px-1 py-0.5
-            rounded">users</code> table created on startup. Scales to zero while nobody is looking.
+            <span data-i18n="features.db_d1">A real Neon database with a</span> <code class="text-xs
+            bg-slate-100 px-1 py-0.5 rounded">users</code> <span data-i18n="features.db_d2">table
+            created on startup. Scales to zero while nobody is looking.</span>
           </p>
         </div>
 
@@ -242,8 +292,8 @@
               <path stroke-linecap="round" stroke-linejoin="round"
                     d="M7 16a4 4 0 010-8 5.5 5.5 0 0110.5-1.5A4.5 4.5 0 1118 16H7z"/></svg>
           </div>
-          <h3 class="font-semibold text-slate-900 text-lg">Deploys to Cloud Run</h3>
-          <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+          <h3 data-i18n="features.deploy_t" class="font-semibold text-slate-900 text-lg">Deploys to Cloud Run</h3>
+          <p data-i18n="features.deploy_d" class="mt-2 text-sm text-slate-600 leading-relaxed">
             Containerised, capped at one instance, scaling to zero. A live demo costs cents a
             month, and the whole thing stays yours.
           </p>
@@ -257,30 +307,34 @@
     <div class="max-w-6xl mx-auto px-5 py-20 sm:py-24">
       <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
         <div>
-          <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
+          <h2 data-i18n="stack.heading" class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
             Small enough to read in one sitting
           </h2>
-          <p class="mt-5 text-slate-600 leading-relaxed">
+          <p data-i18n="stack.body" class="mt-5 text-slate-600 leading-relaxed">
             Under a thousand lines of Python across six files. No framework layered on the
             framework, no generated code you are afraid to touch. Open it, read it, change it.
           </p>
           <ul class="mt-7 space-y-3.5 text-sm text-slate-700">
             <li class="flex gap-3"><span class="text-brand font-bold">&#10003;</span>
-              FastAPI and async SQLAlchemy</li>
+              <span data-i18n="stack.item1">FastAPI and async SQLAlchemy</span></li>
             <li class="flex gap-3"><span class="text-brand font-bold">&#10003;</span>
-              Neon Postgres over asyncpg</li>
+              <span data-i18n="stack.item2">Neon Postgres over asyncpg</span></li>
             <li class="flex gap-3"><span class="text-brand font-bold">&#10003;</span>
-              Google OAuth 2.0, identity scopes only</li>
+              <span data-i18n="stack.item3">Google OAuth 2.0, identity scopes only</span></li>
             <li class="flex gap-3"><span class="text-brand font-bold">&#10003;</span>
-              Tailwind from a CDN, so there is no build step</li>
+              <span data-i18n="stack.item4">Tailwind from a CDN, so there is no build step</span></li>
           </ul>
         </div>
 
-        <div class="rounded-2xl bg-slate-900 p-6 font-mono text-[13px] leading-loose
-                    text-slate-300 overflow-x-auto shadow-xl shadow-slate-900/20">
-          <div class="text-slate-500 select-none"># run it locally</div>
+        <!-- dir="ltr" on the whole block. A shell command is LTR by nature, and inside an RTL
+             context the bidi algorithm reorders its flags and punctuation into nonsense
+             (`--port 8080` in particular). The comments are translated; the commands are not,
+             because they are typed verbatim into a terminal. -->
+        <div dir="ltr" class="rounded-2xl bg-slate-900 p-6 font-mono text-[13px] leading-loose
+                    text-slate-300 overflow-x-auto shadow-xl shadow-slate-900/20 text-start">
+          <div data-i18n="stack.code_local" class="text-slate-500 select-none"># run it locally</div>
           <div><span class="text-violet-400">python</span> -m uvicorn main:app --reload --port 8080</div>
-          <div class="mt-5 text-slate-500 select-none"># ship it &mdash; a push to main builds and deploys</div>
+          <div data-i18n="stack.code_ship" class="mt-5 text-slate-500 select-none"># ship it &mdash; a push to main builds and deploys</div>
           <div><span class="text-violet-400">git</span> push origin main</div>
         </div>
       </div>
@@ -290,14 +344,14 @@
   <!-- Closing CTA — an invitation to register, so it is removed entirely once signed in. -->
   <section id="cta-section" class="border-t border-slate-200">
     <div class="max-w-6xl mx-auto px-5 py-20 text-center">
-      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
+      <h2 data-i18n="cta.heading" class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
         Try the sign-in flow
       </h2>
-      <p class="mt-4 text-slate-600 max-w-lg mx-auto">
+      <p data-i18n="cta.body" class="mt-4 text-slate-600 max-w-lg mx-auto">
         Register with an email or a Google account and see the whole round trip — it takes
         about a minute.
       </p>
-      <button onclick="openAuth('register')"
+      <button onclick="openAuth('register')" data-i18n="cta.button"
               class="mt-8 px-7 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold
                      shadow-lg shadow-indigo-600/20 transition">Create an account</button>
     </div>
@@ -323,26 +377,32 @@
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2">
+      <!-- Labels translate; the values are user data. Email, username and the UUID are Latin
+           text with punctuation, which the bidi algorithm mangles inside an RTL block — hence
+           dir="ltr" and text-start on each value, so they read correctly in both languages.
+           A UUID is the worst case: its hyphens get shuffled and the id becomes unreadable. -->
       <div class="rounded-2xl border border-slate-200 p-5">
-        <p class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Email</p>
-        <p id="user-email" class="text-slate-800 font-medium text-sm break-all"></p>
+        <p data-i18n="dash.email" class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Email</p>
+        <p id="user-email" dir="ltr" class="text-slate-800 font-medium text-sm break-all text-start"></p>
       </div>
       <div class="rounded-2xl border border-slate-200 p-5">
-        <p class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Username</p>
-        <p id="user-username" class="text-slate-800 font-medium text-sm"></p>
+        <p data-i18n="dash.username" class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Username</p>
+        <p id="user-username" dir="ltr" class="text-slate-800 font-medium text-sm text-start"></p>
       </div>
       <div class="rounded-2xl border border-slate-200 p-5">
-        <p class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">User ID</p>
-        <p id="user-id" class="text-slate-800 font-medium text-xs font-mono break-all"></p>
+        <p data-i18n="dash.userid" class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">User ID</p>
+        <p id="user-id" dir="ltr" class="text-slate-800 font-medium text-xs font-mono break-all text-start"></p>
       </div>
       <div class="rounded-2xl border border-slate-200 p-5">
-        <p class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Auth provider</p>
-        <p id="user-provider-detail" class="text-slate-800 font-medium text-sm capitalize"></p>
+        <p data-i18n="dash.provider" class="text-xs text-slate-400 uppercase tracking-wide mb-1.5">Auth provider</p>
+        <!-- `capitalize` dropped: this no longer prints the raw provider slug but a translated
+             label, and capitalising Hebrew is meaningless. -->
+        <p id="user-provider-detail" class="text-slate-800 font-medium text-sm"></p>
       </div>
     </div>
 
     <div class="mt-10 rounded-2xl border border-dashed border-slate-300 p-8 text-center">
-      <p class="text-sm text-slate-500">
+      <p data-i18n="dash.placeholder" class="text-sm text-slate-500">
         This is where your app goes. Ask Claude Code for the first feature.
       </p>
     </div>
@@ -356,9 +416,9 @@
     <div class="flex items-center gap-2.5">
       <span class="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white
                    grid place-items-center font-bold text-[11px]">A</span>
-      <span>App01 — a starter template</span>
+      <span data-i18n="footer.tagline">App01 — a starter template</span>
     </div>
-    <span>FastAPI &middot; Neon Postgres &middot; Cloud Run</span>
+    <span data-i18n="footer.stack">FastAPI &middot; Neon Postgres &middot; Cloud Run</span>
   </div>
 </footer>
 
@@ -372,8 +432,8 @@
 
     <div class="flex items-center justify-between px-7 pt-6 pb-4">
       <h2 id="auth-title" class="text-xl font-bold tracking-tight text-slate-900">Welcome back</h2>
-      <button id="auth-close" aria-label="Close"
-              class="p-1.5 -mr-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+      <button id="auth-close" aria-label="Close" data-i18n-aria-label="auth.close"
+              class="p-1.5 -me-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
           <path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
@@ -389,64 +449,70 @@
           <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
           <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
         </svg>
-        Continue with Google
+        <span data-i18n="auth.google">Continue with Google</span>
       </a>
 
       <div class="flex items-center gap-3 my-5">
         <div class="flex-1 h-px bg-slate-200"></div>
-        <span class="text-slate-400 text-xs uppercase tracking-widest">or</span>
+        <span data-i18n="auth.or" class="text-slate-400 text-xs uppercase tracking-widest">or</span>
         <div class="flex-1 h-px bg-slate-200"></div>
       </div>
 
       <div class="flex gap-5 border-b border-slate-200 mb-5">
-        <button onclick="switchTab('login')" id="tab-login"
+        <button onclick="switchTab('login')" id="tab-login" data-i18n="auth.tab_login"
                 class="tab-btn pb-2.5 text-sm transition">Sign in</button>
-        <button onclick="switchTab('register')" id="tab-register"
+        <button onclick="switchTab('register')" id="tab-register" data-i18n="auth.tab_register"
                 class="tab-btn pb-2.5 text-sm transition">Sign up</button>
       </div>
 
+      <!-- dir="ltr" on the credential inputs: an email address or password typed into an RTL
+           field jumps around as you type. The labels stay in page direction. -->
       <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1.5">Email</label>
-          <input name="email" type="email" required autocomplete="email" placeholder="you@example.com"
-                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+          <label data-i18n="auth.label_email" class="block text-xs font-medium text-slate-600 mb-1.5">Email</label>
+          <input name="email" type="email" required autocomplete="email" dir="ltr"
+                 placeholder="you@example.com" data-i18n-placeholder="auth.ph_email"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-start
                         focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
-          <input name="password" type="password" required autocomplete="current-password"
+          <label data-i18n="auth.label_password" class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
+          <input name="password" type="password" required autocomplete="current-password" dir="ltr"
                  placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
-                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+                 data-i18n-placeholder="auth.ph_password"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-start
                         focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
         </div>
         <p id="login-error" class="text-red-600 text-xs hidden"></p>
-        <button type="submit"
+        <button type="submit" data-i18n="auth.submit_login"
                 class="w-full bg-brand hover:bg-brand-dark text-white rounded-xl py-2.5 text-sm
                        font-semibold transition">Sign in</button>
       </form>
 
       <form id="form-register" onsubmit="handleRegister(event)" class="space-y-4 hidden">
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1.5">Username</label>
-          <input name="username" type="text" required autocomplete="username" placeholder="cooluser"
-                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+          <label data-i18n="auth.label_username" class="block text-xs font-medium text-slate-600 mb-1.5">Username</label>
+          <input name="username" type="text" required autocomplete="username" dir="ltr"
+                 placeholder="cooluser" data-i18n-placeholder="auth.ph_username"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-start
                         focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1.5">Email</label>
-          <input name="email" type="email" required autocomplete="email" placeholder="you@example.com"
-                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+          <label data-i18n="auth.label_email" class="block text-xs font-medium text-slate-600 mb-1.5">Email</label>
+          <input name="email" type="email" required autocomplete="email" dir="ltr"
+                 placeholder="you@example.com" data-i18n-placeholder="auth.ph_email"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-start
                         focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
-          <input name="password" type="password" required autocomplete="new-password"
-                 placeholder="min 8 characters"
-                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm
+          <label data-i18n="auth.label_password" class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
+          <input name="password" type="password" required autocomplete="new-password" dir="ltr"
+                 placeholder="min 8 characters" data-i18n-placeholder="auth.ph_password_new"
+                 class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-start
                         focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand" />
         </div>
         <p id="register-error" class="text-red-600 text-xs hidden"></p>
-        <button type="submit"
+        <button type="submit" data-i18n="auth.submit_register"
                 class="w-full bg-brand hover:bg-brand-dark text-white rounded-xl py-2.5 text-sm
                        font-semibold transition">Create account</button>
       </form>
@@ -501,13 +567,23 @@
     if (e.key === "Escape") { closeAuth(); closeMenu(); }
   });
 
+  // Which tab the dialog is on. Tracked because the dialog title is the one piece of copy that
+  // depends on state, so applyI18n() has to be able to retitle it after a language switch.
+  let authTab = "login";
+
   function switchTab(tab) {
+    authTab = tab;
     const isLogin = tab === "login";
     $("form-login").classList.toggle("hidden", !isLogin);
     $("form-register").classList.toggle("hidden", isLogin);
     $("tab-login").classList.toggle("active", isLogin);
     $("tab-register").classList.toggle("active", !isLogin);
-    $("auth-title").textContent = isLogin ? "Welcome back" : "Create your account";
+    syncAuthTitle();
+  }
+
+  // Called from switchTab and from applyI18n (see i18n.js).
+  function syncAuthTitle() {
+    $("auth-title").textContent = t(authTab === "login" ? "auth.title_login" : "auth.title_register");
   }
 
   // ── Header auth state ─────────────────────────────────
@@ -549,11 +625,14 @@
     const display = user.full_name || user.username || user.email;
     $("user-name").textContent = display;
     $("user-email").textContent = user.email;
-    $("user-username").textContent = user.username || "—";
+    $("user-username").textContent = user.username || t("dash.empty");
     $("user-id").textContent = user.id;
-    $("user-provider").textContent =
-      user.auth_provider === "google" ? "Google account" : "Local account";
-    $("user-provider-detail").textContent = user.auth_provider;
+    // The API returns a slug ("google" / "local"). A slug does not translate, so both the badge
+    // and the detail row show the same friendly label from the dictionary.
+    const providerKey =
+      user.auth_provider === "google" ? "dash.provider_google" : "dash.provider_local";
+    $("user-provider").textContent = t(providerKey);
+    $("user-provider-detail").textContent = t(providerKey);
 
     const img = $("user-avatar"), initials = $("user-initials");
     if (user.avatar_url) {
@@ -586,8 +665,14 @@
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        // FastAPI validation errors arrive as a list of objects, not a string.
-        errEl.textContent = typeof data.detail === "string" ? data.detail : "Something went wrong";
+        // routers/auth.py returns a stable code ("email_taken"), not a sentence, so the message
+        // is translated here. Two things fall through to the generic text: FastAPI's own
+        // validation errors, which arrive as a list of objects rather than a string, and any
+        // code with no dictionary entry — t() returns the key unchanged when it misses, which
+        // is the test below.
+        const code = typeof data.detail === "string" ? data.detail : "";
+        const key = "err." + code;
+        errEl.textContent = code && t(key) !== key ? t(key) : t("err.generic");
         errEl.classList.remove("hidden");
         return;
       }
@@ -595,7 +680,7 @@
       closeAuth();
       showView("dashboard");
     } catch {
-      errEl.textContent = "Network error. Please try again.";
+      errEl.textContent = t("err.network");
       errEl.classList.remove("hidden");
     }
   }
@@ -618,6 +703,12 @@
     setUser(null);
     showView("home");
   }
+
+  // ── Language ──────────────────────────────────────────
+  // Runs before the auth fetch so the page is fully translated and correctly oriented at first
+  // paint. applyI18n() re-runs renderAuth/renderDashboard/syncAuthTitle itself, so the pieces
+  // drawn from user data are picked up again after any later language switch.
+  applyI18n();
 
   // ── On load ───────────────────────────────────────────
   // /auth/me returns 401 when there is no valid cookie, which is the normal path for a
