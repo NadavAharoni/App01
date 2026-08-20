@@ -161,11 +161,11 @@
   the same destination — and its address would have to be committed to a public repo to be
   verifiable. `verify-gcp.ps1` checks that a billing admin exists instead, which is the property
   that actually matters.
-- **The trigger could be renamed** from `rmgpgab-app01-us-east1-NadavAharoni-App01--maoch` to
-  something readable. RiddleSite established that the earlier "the name is the handle" belief was
-  wrong: the immutable handle is the trigger *id*, the name is a mutable label, and renaming
-  preserved the Cloud Run association and its managed tags. `verify-gcp.ps1` keys on the id, so a
-  rename will not break it.
+- ~~The trigger could be renamed~~ — **done 2026-08-20.** Now `app01-deploy-on-push`, matching
+  RiddleSite's `hida-deploy-on-push` convention. Renamed by export/import rather than in the
+  console, which was untested for this: it updated in place, leaving one trigger with the same id
+  and its `gcp-cloud-build-deploy-cloud-run-managed` tags intact. A build was run afterwards to
+  prove the deploy path still works end to end.
 - **Have a native Hebrew reader review the copy in `static/i18n.js`.** It was written to read as
   Hebrew rather than as a translation, and it leans on impersonal forms ("אפשר לפתוח",
   "פותחים, קוראים") because Hebrew has no gender-neutral second person — but that is a style
@@ -290,6 +290,22 @@ turns on it; the docs are corrected and the commit messages stand as written.
 
 Neither suite computes CSS, so rendered layout remains unverified by machine — a real-browser look
 after RTL changes is still a manual step, and is still outstanding.
+
+### Renaming the trigger
+
+`rmgpgab-app01-us-east1-NadavAharoni-App01--maoch` is now **`app01-deploy-on-push`**, matching
+RiddleSite's convention. Cosmetic, but this repo is destined to be a template and a student opening
+the Cloud Build console should be able to recognise their own trigger.
+
+Two things were verified rather than assumed. Renaming by export/import had not been done before —
+RiddleSite did it through the console — so the trigger list was counted before and after in case
+import created a duplicate instead of updating in place. It updated in place: one trigger, same id,
+`gcp-cloud-build-deploy-cloud-run-managed` tags intact. And because a rename touches live deploy
+config, a build was run afterwards to prove the path still works end to end; it deployed
+`app01-00021-jrq` and production still serves the Hebrew page.
+
+That build also gave the fixed prune step its first run at steady state: 3 tagged images, keeping 3,
+0 candidates, nothing deleted. The over-deletion is fixed and the rollback depth has healed.
 
 ### Budget: 10 ILS, and one resource that turned out to be unnecessary
 

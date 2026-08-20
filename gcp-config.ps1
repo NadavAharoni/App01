@@ -43,7 +43,10 @@ $ArtifactWarnPct    = 80
 # off, and renaming preserved the Cloud Run association and its managed tags.) So the id is what
 # this script keys on, and a rename will not break it.
 $TriggerId     = "68da5a2f-0efc-48f1-8214-c3dbd54b039f"
-$TriggerName   = "rmgpgab-app01-us-east1-NadavAharoni-App01--maoch"  # wizard-generated; renamable
+$TriggerName   = "app01-deploy-on-push"   # renamed 2026-08-20 from the wizard-generated
+                                         # rmgpgab-app01-us-east1-NadavAharoni-App01--maoch.
+                                         # Renaming is safe: the id is the handle, and the
+                                         # Cloud Run association and managed tags survived.
 $TriggerRegion = "global"     # NOT us-east1. us-east1 answers NOT_FOUND even with full access,
                               # which reads exactly like a permissions error and is not one.
                               # `gcloud builds list` needs --region global for the same reason.
