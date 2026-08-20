@@ -3,14 +3,16 @@
 ---
 
 ## Current Status
-*Last updated: 2026-08-19 — update this section at the start/end of every session.*
+*Last updated: 2026-08-20 — update this section at the start/end of every session.*
 
 ### What's Working
 - ✅ Google OAuth 2.0 login — tested locally and on Cloud Run with two separate Google accounts.
   Re-verified end to end in production 2026-08-19 against the restyled frontend: sign-in creates
   the Neon `users` row, the dashboard renders the profile, and Google's generated letter-avatar
   loads via `avatar_url`. `username` is correctly `—` for Google accounts.
-- ✅ Local register / login / logout (email + password)
+- ⚠️ Local register / login / logout (email + password) — **implemented but never exercised
+  end to end.** Listed here previously as working, which contradicted the "not done yet" entry
+  below. The routes and the form exist; nobody has created an account this way.
 - ✅ JWT session via HTTP-only cookie (`access_token`, 24h TTL)
 - ✅ Protected `/auth/me` endpoint and `get_current_user` dependency
 - ✅ Public marketing home page (hero, features, stack, CTA) reachable without logging in
@@ -24,9 +26,13 @@
   trigger run (steps `Build;Push;Deploy`, same Artifact Registry path as before).
 - ✅ **Docs- and test-only commits no longer redeploy.** `ignoredFiles` on the trigger covers
   `**/*.md`, `tests/**`, `package*.json`, `.gitignore`, `.env.example`.
+- ✅ **Artifact Registry is capped** — `cloudbuild.yaml` prunes to the newest 3 tagged images on
+  every deploy, so storage no longer grows without bound
 - ✅ **Budget alert** — 10 ILS/month, scoped to this project, alerting the billing admin by default
 - ✅ **Cloud drift check** — `verify-gcp.ps1` + `gcp-config.ps1`. Read-only; exits 1 on drift.
-  Currently reports 0 drift and 3 warnings (see Next Steps).
+  Reports 0 drift and 0 warnings as of 2026-08-20. Verifies the trigger has no substitutions and no
+  inline build, both `maxScale` keys agree, the registry is within the free tier, and the budget
+  exists with a recipient.
 - ✅ **Test suite for the bilingual UI** — `tests/check_i18n.py` (static, dependency-free) and
   `tests/dom_i18n.test.js` (jsdom, 42 assertions, runs against local or production).
 - ✅ **Bilingual UI (English + Hebrew, RTL)** — language auto-detected from the browser on first
@@ -69,8 +75,9 @@
 - GCP project: ID `project-159346f9-b041-4382-b4f`, number `295433370725`
 - **Deploys happen by pushing to the GitHub repo**, not by `gcloud run deploy --source`. A Cloud
   Build trigger created through the Cloud Run console watches the repo and builds from the
-  `Dockerfile`. Trigger `rmgpgab-app01-us-east1-NadavAharoni-App01--maoch`, ID
-  `68da5a2f-0efc-48f1-8214-c3dbd54b039f`.
+  `Dockerfile`. Trigger `app01-deploy-on-push` (renamed 2026-08-20 from the wizard-generated
+  `rmgpgab-...--maoch`), ID `68da5a2f-0efc-48f1-8214-c3dbd54b039f`. The ID is the handle: key
+  scripts on it, never on the name.
 - **The trigger lives in region `global`**, not `us-east1` — the deploy *target* is us-east1, the
   trigger resource is not. Passing `--region us-east1` to `gcloud builds triggers describe`
   returns `NOT_FOUND` even with full access, which reads exactly like a permissions problem and
@@ -103,85 +110,44 @@
   not assume these IDs are private.
 
 ### Next Steps
-- ~~GCP free trial expiry~~ — **resolved 2026-08-19** by the account owner, so the service is no
-  longer on a clock. The underlying issue still applies to *students*, not to this project: every
-  one of them hits the same cliff 90 days after signing up, so the wizard needs a page for it.
-  Tracked in `prompts/wizard_concept.md` under "Constraints the template must respect".
-- ~~Docs-only commits trigger a full rebuild~~ — **resolved 2026-08-20.** `ignoredFiles` is set on
-  the trigger. Note it can only ever live on the trigger: `cloudbuild.yaml` has no way to express
-  it, so this one setting is permanently outside the repo. `sql/**` was deliberately left OUT of
-  the ignore list — the app does not read those files today, but if anything ever makes it do so,
-  an ignored schema change would be a silent bug, and the cost of the occasional extra build is
-  nothing. Doable wherever gcloud is available and authenticated as the App01 owner
-  — check both before starting. Set the equivalent of RiddleSite's
-  `TriggerIgnoredFiles = "**/*.md,*.ps1"`. Note RiddleSite's warning:
-  a trigger created by the Cloud Run console wizard is Cloud Run-managed and holds fields that
-  `gcloud builds triggers create/update github` cannot express — those subcommands reject it with
-  `INVALID_ARGUMENT`. Use `gcloud beta builds triggers export`, edit the YAML, then `import`,
-  which round-trips the whole resource.
-- ~~Deploy config in the repo~~ — **resolved 2026-08-20**, see Current Status. Original note kept
-  for context:
-- **Deploy config in the repo — was half done.** `cloudbuild.yaml` now exists (added 2026-08-20) and
-  reproduces the trigger's inline build faithfully: same three steps, and the templated image path
-  was checked against Artifact Registry and resolves to the identical
-  `cloud-run-source-deploy/app01/app01` it pushes to today. It also states `--max-instances=1` /
-  `--min-instances=0` explicitly, which the inline config never did — those cost controls were
-  console-only state before, despite `wizard_concept.md` requiring them in the repo.
-  **The file is not live yet.** The trigger still carries its own inline `build:` block, and that
-  is what runs on a push to main. Remaining work, all in one export/import round trip: delete the
-  inline `build:`, add `filename: cloudbuild.yaml`, and add `ignoredFiles: ["**/*.md"]` so
-  docs-only commits stop shipping identical revisions. The exact commands are in a comment at the
-  top of `cloudbuild.yaml`. Still no `.github/workflows`, which is fine — Cloud Build is the
-  pipeline. The file has been syntax-checked but **never executed**; the first push to main after
-  the trigger is repointed is the real test, so watch that build.
+
+*Resolved items are not kept here. Session 5 (2026-08-20) closed the deploy-config, docs-only
+rebuild, Artifact Registry, budget, trigger-rename and Hebrew-verification items; the reasoning for
+each is in that session entry rather than duplicated as struck-through text.*
+
+**Verification owed**
 - `sql/users_table.sql` is **syntax-checked but never executed** — there is no reachable database
-  from this machine. Run it once in the Neon SQL editor to confirm; both verification queries
-  should report `OK` on every row.
-- Replace the placeholder landing-page copy once a demo feature (e.g. per-user notes) exists —
-  the hero should show off that feature rather than describe the template
-- ~~Artifact Registry unbounded growth~~ — **capped 2026-08-20.** `cloudbuild.yaml` has a `Prune`
-  step keeping the newest 3 *tagged* images. Live content is now 134 MB. Two things to know: the
-  repository's *reported* size lags deletion by hours (it read 472 MB while holding 134 MB of
-  actual content, the difference being storage pending reclamation), and the first version of the
-  step was wrong — see the session entry. Re-check the reported size later to confirm it falls.
-  Original note kept for context:
-- **Artifact Registry was at 424 MB of the 500 MB free tier**, across 42 images, with nothing pruning
-  them. Found by pulling RiddleSite, which hit the same thing and added a `prune` step to its
-  `cloudbuild.yaml` keeping only the 3 newest images. App01 has no such step, so this only grows.
-  Porting it is a small, contained change, and RiddleSite has two details worth copying exactly:
-  `allowFailure: true` so pruning never fails an otherwise good deploy, and `$$` to escape a
-  literal `$` from Cloud Build's substitution pass.
-- ~~No budget alert~~ — **created 2026-08-20.** `app01-monthly`, 10 ILS per calendar month, scoped
-  to this project only, thresholds at 50/90/100% of actual spend plus 100% of forecast. Id
-  `8cbfd7f4-3e46-4c0c-a8a8-bf020cf129d3`.
-- ~~No notification channel~~ — **not needed, closed rather than deferred.** A Cloud Monitoring
-  channel exists to reach an address that is *not* a billing administrator. Here the intended
-  recipient is the sole `roles/billing.admin` on the account, and a budget with an empty
-  `notificationsRule` emails the billing admins by default, so a channel would be a second copy of
-  the same destination — and its address would have to be committed to a public repo to be
-  verifiable. `verify-gcp.ps1` checks that a billing admin exists instead, which is the property
-  that actually matters.
-- ~~The trigger could be renamed~~ — **done 2026-08-20.** Now `app01-deploy-on-push`, matching
-  RiddleSite's `hida-deploy-on-push` convention. Renamed by export/import rather than in the
-  console, which was untested for this: it updated in place, leaving one trigger with the same id
-  and its `gcp-cloud-build-deploy-cloud-run-managed` tags intact. A build was run afterwards to
-  prove the deploy path still works end to end.
+  from this machine. Run it once in the Neon SQL editor; both verification queries should report
+  `OK` on every row.
+- Test local credentials register/login end-to-end, then smoke test the same against Cloud Run.
+  The form exists and has never been exercised.
+- Re-run `.\verify-gcp.ps1` and confirm the Artifact Registry *reported* size has fallen toward the
+  ~134 MB of real content. It read 472 MB immediately after the prune because reclamation is
+  asynchronous. No action unless it stays high.
+
+**Content**
+- Replace the placeholder landing-page copy once a demo feature (e.g. per-user notes) exists — the
+  hero should show off that feature rather than describe the template. Note this is now ~30 keys
+  across two dictionaries in `static/i18n.js`, not one block of English in the markup.
 - **Have a native Hebrew reader review the copy in `static/i18n.js`.** It was written to read as
-  Hebrew rather than as a translation, and it leans on impersonal forms ("אפשר לפתוח",
-  "פותחים, קוראים") because Hebrew has no gender-neutral second person — but that is a style
-  choice worth a second opinion, and the marketing copy is placeholder text anyway.
-- ~~Look at the Hebrew page in a real browser~~ — **done 2026-08-20**, on Android Chrome against
-  production. The RTL flip is correct (brand right, hamburger left), the logical Tailwind utilities
-  resolve as intended (`ms-3` mirrors the product-shot window dots), and `dir="ltr"` holds the
-  hostname readable inside RTL text. The screenshot was of a signed-in session, so the Hebrew
-  signed-in hero line and the dashboard CTA are confirmed too. Nothing computes layout in the
-  automated suites, so this remains a manual step after RTL changes.
-- Optional polish: the Hebrew headline breaks between `כמעט` and `בחינם.`, splitting the phrase.
-  A non-breaking space in `hero.title_accent` would hold it together. Cosmetic only.
-- Test local credentials register/login end-to-end
-- Smoke test Cloud Run with local credentials
-- **pytest suite** — unit tests (JWT, password hashing) + integration tests via `httpx.AsyncClient` against the FastAPI routes; run in CI on every push
-- **Browser smoke tests** — automated end-to-end verification against Cloud Run after deploy (local credentials test account; Google OAuth verified manually)
+  Hebrew rather than as a translation, and leans on impersonal forms ("אפשר לפתוח",
+  "פותחים, קוראים") because Hebrew has no gender-neutral second person. That is a style choice
+  worth a second opinion.
+- Cosmetic: the Hebrew headline breaks between `כמעט` and `בחינם.`, splitting the phrase. A
+  non-breaking space in `hero.title_accent` would hold it together.
+
+**Testing**
+- **pytest suite** — unit tests (JWT, password hashing) plus integration tests via
+  `httpx.AsyncClient` against the FastAPI routes; run in CI on every push. Note `tests/` already
+  holds the i18n checks, so this slots in beside them rather than starting from nothing.
+- **Browser smoke tests** — automated end-to-end verification against Cloud Run after deploy
+  (local credentials test account; Google OAuth verified manually). This is the gap the jsdom suite
+  cannot cover, since it computes no layout.
+
+**Carried forward for the template, not for this project**
+- The **GCP free trial cliff** was resolved here in 2026-08-19, but every student hits it 90 days
+  after signing up. Tracked in `prompts/wizard_concept.md` under "Constraints the template must
+  respect".
 
 ---
 
