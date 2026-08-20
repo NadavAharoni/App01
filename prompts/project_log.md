@@ -19,6 +19,13 @@
 - ✅ Neon Postgres connected; `users` table auto-created on startup
 - ✅ App runs locally on Python 3.14 via `python -m uvicorn main:app --reload --port 8080`
 - ✅ Deployed to Google Cloud Run
+- ✅ **Deploy config lives in the repo and is live.** The trigger holds only
+  `filename: cloudbuild.yaml` and runs the committed file — verified 2026-08-20 by an explicit
+  trigger run (steps `Build;Push;Deploy`, same Artifact Registry path as before).
+- ✅ **Docs- and test-only commits no longer redeploy.** `ignoredFiles` on the trigger covers
+  `**/*.md`, `tests/**`, `package*.json`, `.gitignore`, `.env.example`.
+- ✅ **Test suite for the bilingual UI** — `tests/check_i18n.py` (static, dependency-free) and
+  `tests/dom_i18n.test.js` (jsdom, 46 assertions, runs against local or production).
 - ✅ **Bilingual UI (English + Hebrew, RTL)** — language auto-detected from the browser on first
   visit, remembered in `localStorage`, switchable from the menu bar. All copy in `static/i18n.js`.
   **Merged to `main` and live in production 2026-08-20** (revision `app01-00016-7sp`). The 46-case
@@ -96,16 +103,21 @@
   longer on a clock. The underlying issue still applies to *students*, not to this project: every
   one of them hits the same cliff 90 days after signing up, so the wizard needs a page for it.
   Tracked in `prompts/wizard_concept.md` under "Constraints the template must respect".
-- **Docs-only commits trigger a full rebuild and a new Cloud Run revision.** Confirmed
-  2026-08-20 — the trigger has no ignored-files filter, so editing `project_log.md` ships a
-  revision identical to the running one and burns build quota. Doable wherever gcloud is available and authenticated as the App01 owner
+- ~~Docs-only commits trigger a full rebuild~~ — **resolved 2026-08-20.** `ignoredFiles` is set on
+  the trigger. Note it can only ever live on the trigger: `cloudbuild.yaml` has no way to express
+  it, so this one setting is permanently outside the repo. `sql/**` was deliberately left OUT of
+  the ignore list — the app does not read those files today, but if anything ever makes it do so,
+  an ignored schema change would be a silent bug, and the cost of the occasional extra build is
+  nothing. Doable wherever gcloud is available and authenticated as the App01 owner
   — check both before starting. Set the equivalent of RiddleSite's
   `TriggerIgnoredFiles = "**/*.md,*.ps1"`. Note RiddleSite's warning:
   a trigger created by the Cloud Run console wizard is Cloud Run-managed and holds fields that
   `gcloud builds triggers create/update github` cannot express — those subcommands reject it with
   `INVALID_ARGUMENT`. Use `gcloud beta builds triggers export`, edit the YAML, then `import`,
   which round-trips the whole resource.
-- **Deploy config in the repo — half done.** `cloudbuild.yaml` now exists (added 2026-08-20) and
+- ~~Deploy config in the repo~~ — **resolved 2026-08-20**, see Current Status. Original note kept
+  for context:
+- **Deploy config in the repo — was half done.** `cloudbuild.yaml` now exists (added 2026-08-20) and
   reproduces the trigger's inline build faithfully: same three steps, and the templated image path
   was checked against Artifact Registry and resolves to the identical
   `cloud-run-source-deploy/app01/app01` it pushes to today. It also states `--max-instances=1` /
@@ -206,6 +218,38 @@ Facts worth keeping:
 - `COPY . .` in the Dockerfile with no `.dockerignore` means a newly added static file needs
   nothing extra to ship — checked before pushing, because a Dockerfile that copied files
   individually would have silently omitted `static/i18n.js` and broken the page in production only.
+
+### Trigger repointed at the repo, and a test suite for the i18n rules
+
+Two follow-ups closed.
+
+**The trigger now runs `cloudbuild.yaml`.** Worth being precise about what was previously done and
+what was not: committing the file recorded the pipeline in git, but the trigger still carried its
+own inline copy of the build steps and never read the file. Those are separate things — a file in
+the repo and a resource in GCP — and they only connect via `filename:`. Done by export → edit →
+import (the only way, since `triggers update github` rejects a console-created trigger), removing
+the inline `build:` block and the trigger's substitutions. Dropping the substitutions matters: had
+they stayed, they would shadow the file's defaults and editing `cloudbuild.yaml` would have changed
+nothing, which is the worst possible outcome — a config file that looks authoritative and is inert.
+
+Verified by an explicit `gcloud builds triggers run`: steps `Build;Push;Deploy`, `ALLOW_LOOSE` from
+the file's own options, and the image resolved to the same
+`cloud-run-source-deploy/app01/app01:<sha>` as before, which confirms `$PROJECT_ID` and
+`_REPO_NAME` behave in a real build and not just on paper. Service came back on revision
+`app01-00017-nc6` with `maxScale: 1` intact.
+
+**`ignoredFiles` is set**, so docs- and test-only commits no longer ship identical revisions.
+
+**Tests committed.** `tests/check_i18n.py` is dependency-free and mechanically enforces every rule
+in CLAUDE.md's Multilingual section; each of its ten checks was confirmed to actually fail by
+temporarily breaking the thing it guards (dropping a Hebrew key, reintroducing `-mr-2`, adding an
+API error code with no message, un-wrapping a translated span, and making `i18n.js` `defer`). A
+check that cannot fail is worse than no check, because it reads as coverage.
+`tests/dom_i18n.test.js` is the jsdom suite, now runnable from the repo and pointable at
+production via `APP_BASE`.
+
+Neither suite computes CSS, so rendered layout remains unverified by machine — a real-browser look
+after RTL changes is still a manual step, and is still outstanding.
 
 ## 2026-08-19 — Session 4
 

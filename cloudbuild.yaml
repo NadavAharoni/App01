@@ -1,34 +1,38 @@
 # Build and deploy App01 to Cloud Run.
 #
-# WHAT THIS FILE IS
-#   A faithful, reviewable copy of the build that actually ships App01 today. Until 2026-08-20
-#   those steps existed *only* inside a Cloud Build trigger created by the Cloud Run console
-#   wizard — an inline `build:` block with no `filename:`, so nothing in the repo recorded how
-#   this app was deployed and a fresh clone could not reproduce it.
+# THIS FILE IS LIVE. The Cloud Build trigger runs it on every push to main (verified 2026-08-20).
+# Editing it changes how the app deploys, so treat it as production code.
 #
-# IMPORTANT: committing this file does NOT by itself change how deploys happen.
-#   The live trigger still carries its own inline build config, and that is what runs on a push
-#   to main. This file becomes live only when the trigger is repointed at it:
+# The trigger used to carry these steps inline, which meant nothing in the repo recorded how the
+# app shipped and a fresh clone could not reproduce it. It now holds only
+# `filename: cloudbuild.yaml` and points here.
 #
-#     gcloud beta builds triggers export 68da5a2f-0efc-48f1-8214-c3dbd54b039f \
-#       --project project-159346f9-b041-4382-b4f --region global --destination trigger.yaml
-#     # in trigger.yaml: delete the whole `build:` block, add `filename: cloudbuild.yaml`,
-#     #                  and add an `ignoredFiles:` list so docs-only commits stop redeploying
-#     gcloud beta builds triggers import --source trigger.yaml \
-#       --project project-159346f9-b041-4382-b4f --region global
+# Deploy target: service `app01`, region us-east1, project project-159346f9-b041-4382-b4f.
+# The TRIGGER itself lives in region `global` — us-east1 returns NOT_FOUND even with full access,
+# which reads exactly like a permissions error and is not one. Same for `gcloud builds list`.
 #
-#   Export/edit/import is required because `gcloud builds triggers update github` cannot express
-#   a console-managed trigger and rejects it with INVALID_ARGUMENT.
-#   NOTE the trigger lives in region `global`, not us-east1 — us-east1 is the deploy target.
+# Two things live on the trigger and CANNOT be expressed here:
+#   * the branch filter (`^main$`), so feature branches never deploy;
+#   * `ignoredFiles` (**/*.md, tests/**, package*.json, .gitignore, .env.example), so docs- and
+#     test-only commits do not rebuild and redeploy a byte-identical revision.
+# To change either, round-trip the whole resource — `gcloud builds triggers update github` cannot
+# express a Cloud Run-console-created trigger and rejects it with INVALID_ARGUMENT:
 #
-# DELIBERATE DIFFERENCES from the inline config it replaces:
-#   * `$PROJECT_ID` (a Cloud Build built-in) replaces a hardcoded `_AR_PROJECT_ID`, so the file
-#     is portable — this repo is intended to become a reusable template.
-#   * `--max-instances` / `--min-instances` are stated explicitly. They match the running service
-#     (maxScale 1, min unset = 0) so this is not a behaviour change, but the template must keep
-#     its cost controls in the repo rather than in console state nobody can review.
-#   * The `gcb-trigger-id` label is dropped: `_TRIGGER_ID` is a substitution the trigger injects,
-#     not a built-in, so in a file it would resolve to an empty string.
+#     gcloud beta builds triggers export 68da5a2f-0efc-48f1-8214-c3dbd54b039f #       --project project-159346f9-b041-4382-b4f --region global --destination trigger.yaml
+#     # edit trigger.yaml
+#     gcloud beta builds triggers import --source trigger.yaml #       --project project-159346f9-b041-4382-b4f --region global
+#
+# Substitutions are declared here and NOT on the trigger, deliberately: if the trigger also set
+# them it would shadow these defaults and editing this file would change nothing.
+#
+# NOTES ON THE STEPS:
+#   * `$PROJECT_ID` is a Cloud Build built-in, replacing a hardcoded project id the inline config
+#     used, so this file is portable — the repo is intended to become a reusable template.
+#   * `--max-instances` / `--min-instances` are explicit. They match the running service, so this
+#     is not a behaviour change; the point is that the cost controls are reviewable in the repo
+#     rather than being console state nobody can see.
+#   * `_REPO_NAME` is a substitution rather than the `$REPO_NAME` built-in, which is empty outside
+#     a repo-triggered build and would silently produce a broken image path.
 
 substitutions:
   _SERVICE_NAME: app01

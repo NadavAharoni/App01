@@ -1,0 +1,12 @@
+{
+  "name": "app01-tests",
+  "private": true,
+  "description": "Dev-only. The app itself is Python; this exists solely so the frontend tests can pull in jsdom.",
+  "scripts": {
+    "test": "node tests/dom_i18n.test.js",
+    "test:static": "python tests/check_i18n.py"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

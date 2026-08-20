@@ -11,3 +11,6 @@ build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Node is dev-only (frontend tests); the app itself is Python
+node_modules/
