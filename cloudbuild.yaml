@@ -43,6 +43,11 @@ substitutions:
   _DEPLOY_REGION: us-east1
   _AR_HOSTNAME: us-east1-docker.pkg.dev
   _AR_REPOSITORY: cloud-run-source-deploy
+  # How many images to keep. 3 is enough because git is the source of truth and every
+  # dependency in requirements.txt is pinned exactly, so `git revert` + push reproduces
+  # any old commit. A retained image only buys speed: an instant
+  # `update-traffic --to-revisions` instead of a ~90s rebuild.
+  _KEEP_IMAGES: '3'
 
 steps:
   # `--no-cache` is inherited from the original config. Each Cloud Build run starts on a clean
@@ -81,6 +86,55 @@ steps:
       - --min-instances=0
       - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID
       - --quiet
+
+  # Reap old images. Artifact Registry bills above 0.5 GB and each deploy adds a layer set, so
+  # without this the repository grows forever -- App01 reached 424 MB across 42 images before this
+  # step existed. Runs last, so the image just deployed is never a candidate.
+  #
+  # allowFailure: cleanup must never fail an otherwise good deploy.
+  # $$ escapes a literal $ so Cloud Build does not read it as a substitution.
+  #
+  # The explicit permission check is the point: roles/artifactregistry.writer can push but NOT
+  # delete, so with allowFailure this step would reap nothing and say nothing -- which is exactly
+  # what happened in RiddleSite until artifactregistry.repoAdmin was granted. A silent no-op that
+  # looks like success is worse than a failure, so a denial is reported loudly here.
+  - id: Prune
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        set -u
+        IMAGE=$_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_REPO_NAME/$_SERVICE_NAME
+        KEEP=$_KEEP_IMAGES
+        echo "pruning $$IMAGE, keeping newest $$KEEP"
+
+        gcloud artifacts docker images list "$$IMAGE"           --sort-by=~CREATE_TIME --format='value(version)' --quiet           | tail -n +$$((KEEP + 1)) > /tmp/stale
+
+        total=$$(wc -l < /tmp/stale | tr -d ' ')
+        echo "candidates: $$total"
+        if [ "$$total" -eq 0 ]; then echo "nothing to prune"; exit 0; fi
+
+        deleted=0
+        failed=0
+        while read -r digest; do
+          [ -n "$$digest" ] || continue
+          if gcloud artifacts docker images delete "$$IMAGE@$$digest" --quiet --delete-tags; then
+            deleted=$$((deleted + 1))
+          else
+            failed=$$((failed + 1))
+          fi
+        done < /tmp/stale
+
+        echo "deleted=$$deleted failed=$$failed"
+        if [ "$$failed" -gt 0 ] && [ "$$deleted" -eq 0 ]; then
+          echo "PRUNE FAILED: every delete was rejected. The Cloud Build service account almost"
+          echo "certainly has roles/artifactregistry.writer but not repoAdmin -- writer can push"
+          echo "but cannot delete. Storage will keep growing until that is granted."
+          exit 1
+        fi
+        echo "prune complete"
 
 images:
   - $_AR_HOSTNAME/$PROJECT_ID/$_AR_REPOSITORY/$_REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA

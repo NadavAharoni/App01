@@ -107,6 +107,23 @@ the repo is the live build config; read its header comment before changing anyth
 pipeline, because the branch filter and `ignoredFiles` live on the trigger and cannot be expressed
 in the file. Feature branches never deploy (`^main$`), and docs/test-only commits do not rebuild.
 
+## Reporting back
+
+Summaries are for decisions, not for implementation detail.
+
+- **Lead with what changes a decision:** what is broken, what is at risk, what needs a call. Status
+  and blockers first.
+- **Keep minutiae out of the summary.** File encodings, shell quoting, which API field does or does
+  not exist, how a value had to be parsed: these belong in a code comment or in this file, next to
+  the code they explain. They are invisible to the reader of a summary and crowd out what matters.
+- **Do not mix severities in one list.** A cost ceiling being 85% consumed and a PowerShell
+  encoding quirk are not two bullets of the same kind. Separate them or drop the small one.
+- **Never call something urgent and then defer it.** If it is urgent, fix it in the same session,
+  or state plainly what is blocking and who has to unblock it. "Flagged as a next step" is not an
+  answer to "this is urgent".
+- **Say what was agreed, not "as agreed".** Name the decision and when it was made, so the reader
+  can check it rather than take it on trust.
+
 ## Commits
 
 - Do not add `Co-Authored-By` trailers to commit messages.
