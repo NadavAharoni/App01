@@ -73,6 +73,33 @@ npm install && npm test        # behavioural, needs a server running (see below)
   in a real browser is still a manual step, and it is the one worth doing after RTL changes.
 - `package.json` exists only to pull in jsdom. The app is Python; nothing at runtime needs Node.
 
+## Cloud state
+
+```
+.\verify-gcp.ps1            # read-only drift check; -Detailed shows passing checks too
+```
+
+`gcp-config.ps1` declares what the cloud is *supposed* to look like; `verify-gcp.ps1` checks that
+it still does. Read-only -- describe/list calls only, never a write -- so it is safe to run at any
+time. Exit 0 = matches, 1 = drift, 2 = could not check (no gcloud, no auth).
+
+It exists because a provisioning script asserts things *exist*, which is not the same as asserting
+nothing *extra* has appeared. The failure that prompted it was the second kind: substitutions on
+the Cloud Build trigger silently override the ones in `cloudbuild.yaml`, so every build stays green
+while that file quietly stops mattering. Only a check that says "this must be ABSENT" catches it.
+The same script also catches the Cloud Run console's second, service-level `maxScale` annotation,
+which `gcloud run deploy` never touches and which can therefore advertise a spend ceiling that is
+not the real one.
+
+Two PowerShell gotchas are baked in and should not be "tidied away":
+
+- The scripts are saved as **UTF-8 with BOM**. Windows PowerShell 5.1 decodes a BOM-less `.ps1` as
+  ANSI and mangles every non-ASCII character.
+- `$ErrorActionPreference` is **`Continue`, not `Stop`**. gcloud writes chatty informational lines
+  to stderr on *success*, and PowerShell wraps native stderr in ErrorRecords -- so under `Stop` a
+  successful command aborts the script as soon as anything redirects its output, which is exactly
+  what happens when a test harness or a pipe is involved. Exit codes are checked explicitly.
+
 ## Deploying
 
 Pushing to `main` builds and deploys — there is no separate deploy command. `cloudbuild.yaml` in

@@ -24,6 +24,8 @@
   trigger run (steps `Build;Push;Deploy`, same Artifact Registry path as before).
 - ✅ **Docs- and test-only commits no longer redeploy.** `ignoredFiles` on the trigger covers
   `**/*.md`, `tests/**`, `package*.json`, `.gitignore`, `.env.example`.
+- ✅ **Cloud drift check** — `verify-gcp.ps1` + `gcp-config.ps1`. Read-only; exits 1 on drift.
+  Currently reports 0 drift and 3 warnings (see Next Steps).
 - ✅ **Test suite for the bilingual UI** — `tests/check_i18n.py` (static, dependency-free) and
   `tests/dom_i18n.test.js` (jsdom, 42 assertions, runs against local or production).
 - ✅ **Bilingual UI (English + Hebrew, RTL)** — language auto-detected from the browser on first
@@ -135,6 +137,22 @@
   should report `OK` on every row.
 - Replace the placeholder landing-page copy once a demo feature (e.g. per-user notes) exists —
   the hero should show off that feature rather than describe the template
+- **Artifact Registry is at 424 MB of the 500 MB free tier**, across 42 images, and nothing prunes
+  them. Found by pulling RiddleSite, which hit the same thing and added a `prune` step to its
+  `cloudbuild.yaml` keeping only the 3 newest images. App01 has no such step, so this only grows.
+  Porting it is a small, contained change, and RiddleSite has two details worth copying exactly:
+  `allowFailure: true` so pruning never fails an otherwise good deploy, and `$$` to escape a
+  literal `$` from Cloud Build's substitution pass.
+- **No budget alert and no notification channel**, which violates the cost-control constraint in
+  `wizard_concept.md`. The Budget API has never even been enabled on the project, so there is
+  definitively no budget rather than a misconfigured one. Creating both touches billing and was
+  deliberately left for explicit authorisation. An alert email must NOT be committed to this repo,
+  which is public; pass it via `$env:APP01_ALERT_EMAIL`.
+- **The trigger could be renamed** from `rmgpgab-app01-us-east1-NadavAharoni-App01--maoch` to
+  something readable. RiddleSite established that the earlier "the name is the handle" belief was
+  wrong: the immutable handle is the trigger *id*, the name is a mutable label, and renaming
+  preserved the Cloud Run association and its managed tags. `verify-gcp.ps1` keys on the id, so a
+  rename will not break it.
 - **Have a native Hebrew reader review the copy in `static/i18n.js`.** It was written to read as
   Hebrew rather than as a translation, and it leans on impersonal forms ("אפשר לפתוח",
   "פותחים, קוראים") because Hebrew has no gender-neutral second person — but that is a style
@@ -254,6 +272,61 @@ turns on it; the docs are corrected and the commit messages stand as written.
 
 Neither suite computes CSS, so rendered layout remains unverified by machine — a real-browser look
 after RTL changes is still a manual step, and is still outstanding.
+
+### Pulling RiddleSite, and a drift checker instead of a provisioner
+
+Pulled RiddleSite (12 commits behind) before writing anything, on the theory that it had already
+met these problems. It had, and three findings transferred directly.
+
+**Two `maxScale` keys.** The Cloud Run console wizard writes `run.googleapis.com/maxScale` on the
+*service* metadata, and `gcloud run deploy` never touches it. The key that actually governs
+autoscaling is `autoscaling.knative.dev/maxScale` on the *revision*. RiddleSite ran for weeks with
+1 on the revision and a stale 3 on the service, so its console header advertised triple the real
+ceiling, on the single number that exists to reassure you about spend. App01 checked: both are 1,
+clean by luck rather than by design. Now an explicit check.
+
+**Trigger names are mutable.** RiddleSite's config used to claim the wizard-generated name could
+not be changed because "the name is the handle". Its Step 20 disproved that: the immutable handle
+is the id, the name is a label, and a rename preserved the Cloud Run association. Worth knowing
+here, because a note to that effect had already been carried into this repo.
+
+**Artifact Registry needs pruning.** RiddleSite prunes to the 3 newest images because the free
+tier is 0.5 GB. App01 has no prune step and sits at 424 MB across 42 images, 85% of the tier and
+growing with every deploy. This was the most valuable thing the pull turned up, and writing the
+script from first principles would not have found it.
+
+Also corroborated independently: gcloud absent on one machine and present on another, matching the
+two-machine correction recorded above; and `gcloud builds triggers update github` being unable to
+express Cloud Run-managed fields.
+
+**Built verify-only, not a provisioner.** RiddleSite's `setup-gcp.ps1` provisions and doubles as
+machine recovery. Useful, but it would not have caught the substitutions problem, because
+provisioning asserts things *exist* and that failure was something *extra* appearing. So App01 gets
+`gcp-config.ps1` (declared state) plus `verify-gcp.ps1` (read-only comparison, exit 1 on drift).
+Provisioning can be layered on the same config later.
+
+All five drift checks were confirmed to actually fire, by mutating the *declared* config rather
+than live cloud state: same comparison code path, no production risk. The first attempt at that
+crashed mid-run and left `gcp-config.ps1` mutated; the second run then backed up the corrupted file
+as its own baseline, so every case inherited a phantom drift and the numbers looked wrong in a
+confusing way. Rewritten with a `finally` restore and a baseline assertion that refuses to run
+unless drift is 0.
+
+Two Windows/PowerShell details that cost real time, now in `CLAUDE.md`, because both present as
+unrelated bugs:
+
+- **Save `.ps1` as UTF-8 with BOM.** PS 5.1 decodes a BOM-less `.ps1` as ANSI, which turned every
+  em dash into mojibake and fed a cascade of parse errors.
+- **`$ErrorActionPreference` must be `Continue`, not `Stop`.** gcloud writes informational lines to
+  stderr on *success* ("Listing items under project...", "Repository Size: ..."), and Windows
+  PowerShell wraps native stderr in ErrorRecords. Under `Stop`, a perfectly successful gcloud call
+  kills the script the moment anything redirects its output, which is precisely what a test harness
+  does. Exit codes are checked explicitly instead.
+
+One more quirk: the repository size is not a field. `describe --format=json` has no size key at
+all, and gcloud only emits it as a human-readable stderr line, so it has to be scraped. Summing
+`imageSizeBytes` across images is not a substitute, because layers are deduplicated: 42 images of
+~67 MB each occupy 424 MB, and summing overstates it roughly sevenfold.
 
 ## 2026-08-19 — Session 4
 
