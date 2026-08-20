@@ -64,7 +64,7 @@ npm install && npm test        # behavioural, needs a server running (see below)
   no orphaned or undefined keys, every API error code has a message, no physical direction
   utilities, `dir="ltr"` where bidi needs it, no hardcoded copy, and that `i18n.js` stays blocking
   and ahead of the stylesheet. Pure Python, no dependencies, runs in under a second.
-- `tests/dom_i18n.test.js` loads the page as served and drives its real scripts under jsdom — 46
+- `tests/dom_i18n.test.js` loads the page as served and drives its real scripts under jsdom — 42
   assertions over both languages, both auth states, runtime switching, persistence, the legacy
   `iw` language code, blocked `localStorage`, and error-code translation. Needs a running server:
   `python -m uvicorn main:app --port 8080` in one shell, `npm test` in another. Point it at

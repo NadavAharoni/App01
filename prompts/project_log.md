@@ -25,10 +25,10 @@
 - ✅ **Docs- and test-only commits no longer redeploy.** `ignoredFiles` on the trigger covers
   `**/*.md`, `tests/**`, `package*.json`, `.gitignore`, `.env.example`.
 - ✅ **Test suite for the bilingual UI** — `tests/check_i18n.py` (static, dependency-free) and
-  `tests/dom_i18n.test.js` (jsdom, 46 assertions, runs against local or production).
+  `tests/dom_i18n.test.js` (jsdom, 42 assertions, runs against local or production).
 - ✅ **Bilingual UI (English + Hebrew, RTL)** — language auto-detected from the browser on first
   visit, remembered in `localStorage`, switchable from the menu bar. All copy in `static/i18n.js`.
-  **Merged to `main` and live in production 2026-08-20** (revision `app01-00016-7sp`). The 46-case
+  **Merged to `main` and live in production 2026-08-20** (revision `app01-00016-7sp`). The 42-case
   jsdom suite was re-run against the production URL and passes there too. Tag `before-hebrew`
   marks the last English-only commit if a rollback is ever needed.
 
@@ -193,7 +193,7 @@ its sentence so translation cannot touch it. Shell commands are left untranslate
 `dir="ltr"` block while their comments are translated. The switcher labels ("EN", "עברית") are each
 written in their own language and deliberately not translated.
 
-Verified with jsdom against the running server: 46 assertions over both languages, both auth
+Verified with jsdom against the running server: 42 assertions over both languages, both auth
 states, runtime switching, persistence, the legacy `iw` language code, blocked `localStorage`, and
 error-code translation including the unknown-code fallback. Plus static checks for key parity in
 both directions, orphaned keys, leftover untranslated text, and physical direction utilities.
@@ -247,6 +247,10 @@ API error code with no message, un-wrapping a translated span, and making `i18n.
 check that cannot fail is worse than no check, because it reads as coverage.
 `tests/dom_i18n.test.js` is the jsdom suite, now runnable from the repo and pointable at
 production via `APP_BASE`.
+
+The suite is **42** assertions, not the 46 stated in the two commit messages before this one —
+counted properly from its own output (10+3+5+6+10+4+3+1) rather than estimated. Nothing functional
+turns on it; the docs are corrected and the commit messages stand as written.
 
 Neither suite computes CSS, so rendered layout remains unverified by machine — a real-browser look
 after RTL changes is still a manual step, and is still outstanding.
